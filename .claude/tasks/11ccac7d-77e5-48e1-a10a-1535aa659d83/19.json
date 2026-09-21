@@ -1,0 +1,9 @@
+{
+  "id": "19",
+  "subject": "Copy .databrickscfg from Training Accelerator project",
+  "description": "Copy .databrickscfg from /app/python/source_code/projects/8fe8f88e-4652-4038-8ff0-0ec9bdfdaadf/.databrickscfg to the current project root. This reuses the service principal OAuth token (client_id: 57755c23-5f4c-45ac-b2a2-118523d0c1b5) from the 3Cloud Training Accelerator project. Verify it contains host and token entries.",
+  "activeForm": "Copying authentication configuration",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

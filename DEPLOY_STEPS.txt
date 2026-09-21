@@ -1,0 +1,225 @@
+================================================================================
+HLS SAS DBX CLAIMS PIPELINE - DEPLOYMENT STEPS
+================================================================================
+
+STEP 1: CREATE SOURCE DATA (SQL Editor)
+================================================================================
+
+1. Open Databricks workspace in browser
+2. Go to SQL Editor (left sidebar)
+3. Select SQL Warehouse: "SQL Warehouse (ID: 2f51df324d05e45d)"
+4. Run these commands sequentially:
+
+-- Create schemas
+CREATE SCHEMA IF NOT EXISTS na-dbxtraining.demo_bravo_insurance_claims;
+CREATE SCHEMA IF NOT EXISTS na-dbxtraining.hls_sas_dbx_claims;
+
+-- Note: For full data generation with proper spike patterns,
+-- see DEPLOY.md Section 1 for complete SQL script
+-- Or use generate_data.py after fixing OAuth scopes
+
+================================================================================
+STEP 2: UPLOAD PIPELINE NOTEBOOK
+================================================================================
+
+1. Open Databricks Workspace (left sidebar → Workspace)
+2. Navigate to: /Users/tracy.anderson@3cloudsolutions.com/
+3. Click "Create" → "Folder"
+4. Folder name: "hls_sas_dbx_claims"
+5. Open the folder
+6. Click "Create" → "Notebook"
+7. Notebook name: "claims_pipeline"
+8. Default Language: "Python"
+9. Click "Create"
+
+10. Copy-paste the entire contents from:
+    /app/python/source_code/projects/3c8d1ae7-103b-4b34-8eed-a269543e43bb/pipeline/claims_pipeline.py
+
+11. Save the notebook (Cmd/Ctrl + S)
+
+================================================================================
+STEP 3: CREATE PIPELINE VIA UI
+================================================================================
+
+1. Go to "Workflows" → "Delta Live Tables" (left sidebar)
+2. Click "Create Pipeline"
+3. Fill in the configuration:
+
+Pipeline Settings:
+------------------
+Pipeline name: hls_sas_dbx_claims_pipeline
+Product edition: Advanced
+Notebook libraries:
+  - Click "Add notebook"
+  - Path: /Users/tracy.anderson@3cloudsolutions.com/hls_sas_dbx_claims/claims_pipeline
+
+Destination:
+------------
+Catalog: na-dbxtraining
+Target schema: hls_sas_dbx_claims
+Storage location: /Volumes/na-dbxtraining/hls_sas_dbx_claims/pipeline_storage
+
+Compute:
+--------
+Cluster mode: Serverless (toggle ON)
+Photon acceleration: Enabled (toggle ON)
+Min workers: 1
+Max workers: 5
+
+Configuration (Advanced):
+-------------------------
+Click "Add configuration"
+Add these key-value pairs:
+  baseline_weekly_claims = 2500000
+  spike_threshold_ratio = 1.25
+  affected_batch_id = AC-2026-Q1
+
+Pipeline mode: Triggered
+Channel: Current
+
+4. Click "Create"
+5. Copy the Pipeline ID from the URL (you'll need this)
+
+================================================================================
+STEP 4: START FIRST RUN
+================================================================================
+
+1. In the pipeline details page, click "Start"
+2. Wait for serverless initialization (3-5 minutes for cold start)
+3. Monitor progress in "Event Log" tab
+4. Wait for "COMPLETED" status
+
+Expected Duration: 5-10 minutes (first run)
+
+================================================================================
+STEP 5: VERIFY OUTPUT TABLES
+================================================================================
+
+Back in SQL Editor, run:
+
+-- Check all tables exist
+SELECT 'bronze_claims' AS table_name, COUNT(*) AS rows
+FROM na-dbxtraining.hls_sas_dbx_claims.bronze_claims
+UNION ALL
+SELECT 'silver_claims_enriched', COUNT(*)
+FROM na-dbxtraining.hls_sas_dbx_claims.silver_claims_enriched
+UNION ALL
+SELECT 'gold_claims', COUNT(*)
+FROM na-dbxtraining.hls_sas_dbx_claims.gold_claims
+UNION ALL
+SELECT 'gold_daily_summary', COUNT(*)
+FROM na-dbxtraining.hls_sas_dbx_claims.gold_daily_summary
+UNION ALL
+SELECT 'gold_weekly_summary', COUNT(*)
+FROM na-dbxtraining.hls_sas_dbx_claims.gold_weekly_summary
+UNION ALL
+SELECT 'gold_affected_batch_analysis', COUNT(*)
+FROM na-dbxtraining.hls_sas_dbx_claims.gold_affected_batch_analysis;
+
+-- Expected: All tables with ~15K rows (except summaries which are aggregated)
+
+-- Check affected batch
+SELECT COUNT(*) AS affected_claims,
+       SUM(claim_amount_usd) AS total_amount
+FROM na-dbxtraining.hls_sas_dbx_claims.gold_claims
+WHERE is_affected_batch = TRUE;
+
+-- Expected: ~340 affected claims
+
+-- Check for spike alerts
+SELECT week, weekly_claims, ratio, status
+FROM na-dbxtraining.hls_sas_dbx_claims.gold_weekly_summary
+WHERE status = 'ALERT'
+ORDER BY week DESC;
+
+-- Expected: ALERT status for weeks with spike
+
+================================================================================
+STEP 6: CREATE METRIC VIEWS
+================================================================================
+
+In SQL Editor, run:
+
+-- Copy-paste contents from:
+-- /app/python/source_code/projects/3c8d1ae7-103b-4b34-8eed-a269543e43bb/pipeline/metric_views.sql
+
+-- This creates:
+-- - na-dbxtraining.hls_sas_dbx_claims.mv_claims_performance
+-- - na-dbxtraining.hls_sas_dbx_claims.mv_affected_batch_metrics
+
+================================================================================
+STEP 7: UPDATE resources.json
+================================================================================
+
+After successful deployment, update:
+/app/python/source_code/projects/3c8d1ae7-103b-4b34-8eed-a269543e43bb/resources.json
+
+Replace "created_resources" section with:
+
+{
+  "created_resources": {
+    "deployment_status": "DEPLOYED",
+    "catalog": "na-dbxtraining",
+    "source_schema": "demo_bravo_insurance_claims",
+    "pipeline_schema": "hls_sas_dbx_claims",
+    "pipeline_id": "<PASTE_PIPELINE_ID_HERE>",
+    "pipeline_name": "hls_sas_dbx_claims_pipeline",
+    "pipeline_url": "https://adb-1952652121322753.13.azuredatabricks.net/#joblist/pipelines/<PIPELINE_ID>",
+    "api_version": "modern_sdp",
+    "tables_created": [
+      "bronze_policyholders",
+      "bronze_appliances",
+      "bronze_appliance_batches",
+      "bronze_claims",
+      "silver_claims_enriched",
+      "gold_claims",
+      "gold_daily_summary",
+      "gold_weekly_summary",
+      "gold_affected_batch_analysis"
+    ],
+    "metric_views": [
+      "hls_sas_dbx_claims.mv_claims_performance",
+      "hls_sas_dbx_claims.mv_affected_batch_metrics"
+    ],
+    "deployed_by": "tracy.anderson@3cloudsolutions.com",
+    "deployment_date": "<TODAY'S_DATE>"
+  }
+}
+
+================================================================================
+NEXT STEPS (Optional)
+================================================================================
+
+1. Create AI/BI Dashboard:
+   - Go to SQL → Dashboards → Create Dashboard
+   - Add visualizations using gold tables
+   - Save as "HLS SAS DBX Claims Dashboard"
+
+2. Create Genie Space:
+   - Go to SQL → Genie Spaces → Create Space
+   - Name: "HLS Claims Investigation"
+   - Select gold tables
+   - Add instructions (see DEPLOY.md Step 6)
+
+3. Test queries:
+   - "Why are claims spiking?"
+   - "Show me affected batch claims by state"
+   - "What's the weekly claims trend?"
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Pipeline fails with "Table not found":
+- Verify source tables exist in demo_bravo_insurance_claims schema
+- Run data generation SQL from DEPLOY.md Step 1
+
+Pipeline stuck in INITIALIZING:
+- Normal for serverless cold start (wait 5 min)
+- Check Event Log for errors
+
+Column not found errors:
+- Verify schema matches between source and pipeline
+- Check SCHEMAS.md for expected schema
+
+================================================================================

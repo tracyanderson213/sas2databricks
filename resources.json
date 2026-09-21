@@ -1,0 +1,199 @@
+{
+  "capabilities": {
+    "buildable": [
+      "synthetic-data-gen",
+      "sdp",
+      "metric-views",
+      "aibi-dashboards",
+      "genie",
+      "sas-migration"
+    ],
+    "talking_track": [
+      "lakeflow-connect",
+      "genie-one",
+      "genie-code",
+      "unity-catalog",
+      "sas-to-databricks-migration"
+    ]
+  },
+  "project": {
+    "name": "sas2dbx-migrate",
+    "description": "SAS to Databricks Migration System - Automated conversion pipeline using sas2databricks",
+    "type": "migration-system",
+    "status": "ready_to_deploy"
+  },
+  "notebooks": {
+    "status": "ready_to_import",
+    "location": "notebooks/",
+    "files": {
+      "01_setup_volumes.py": {
+        "purpose": "Create schema, volume, and folder structure",
+        "runtime": "~2-3 minutes",
+        "prerequisites": "CREATE SCHEMA and CREATE VOLUME permissions",
+        "status": "✅ Fixed and ready"
+      },
+      "02_upload_sample_sas.py": {
+        "purpose": "Upload 3 simple SAS programs for testing",
+        "runtime": "~1 minute",
+        "prerequisites": "Volumes created (run 01 first)",
+        "status": "✅ Fixed and ready"
+      },
+      "02a_upload_healthcare_example.py": {
+        "purpose": "Upload COMPLEX healthcare SAS examples",
+        "runtime": "~1 minute",
+        "prerequisites": "Volumes created (run 01 first)",
+        "status": "✅ NEW - Production-quality healthcare code",
+        "highlights": [
+          "claims_adjudication.sas (~250 lines)",
+          "eligibility_validation.sas (~140 lines)",
+          "HCC risk adjustment, duplicate detection, medical review routing",
+          "Real business rules from healthcare domain"
+        ]
+      },
+      "03_test_conversion.py": {
+        "purpose": "Run sas2databricks converter on samples",
+        "runtime": "~5-10 minutes",
+        "prerequisites": "Sample SAS uploaded (run 01 and 02 first)",
+        "status": "✅ Fixed and ready - uses correct migrate() API"
+      },
+      "README.md": {
+        "purpose": "Instructions for using notebooks",
+        "status": "✅ Created"
+      }
+    }
+  },
+  "deployment_options": {
+    "option_a_manual": {
+      "method": "Manual upload to Databricks workspace",
+      "time": "2 minutes",
+      "token_requirements": "Any valid token",
+      "steps": [
+        "Open Databricks workspace",
+        "Create folder: sas2dbx_setup",
+        "Import 3 notebooks",
+        "Run in order"
+      ],
+      "status": "✅ Recommended - works right now"
+    },
+    "option_b_bundle": {
+      "method": "Deploy via DAB bundle",
+      "time": "1 minute (after token fix)",
+      "token_requirements": "Token with workspace scope",
+      "bundle_location": "setup-bundle/",
+      "status": "⚠️ Blocked by token permissions"
+    }
+  },
+  "volumes": {
+    "sas_migration": {
+      "path": "/Volumes/na-dbxtraining/sas2dbx_migrate/sas_migration",
+      "status": "ready_to_create",
+      "created_by": "notebooks/01_setup_volumes.py",
+      "subfolders": [
+        "input",
+        "staging",
+        "approved",
+        "metadata_registry",
+        "archive"
+      ]
+    }
+  },
+  "sample_data": {
+    "status": "ready_to_upload",
+    "simple_examples": {
+      "uploaded_by": "notebooks/02_upload_sample_sas.py",
+      "samples": [
+        {
+          "name": "test_simple_sql",
+          "type": "PROC SQL",
+          "complexity": "easy",
+          "lines": "~15",
+          "expected_confidence": "100% HIGH",
+          "file": "simple_select.sas"
+        },
+        {
+          "name": "test_format_data",
+          "type": "PROC FORMAT + DATA step",
+          "complexity": "medium",
+          "lines": "~35",
+          "expected_confidence": "100% HIGH",
+          "file": "format_cars.sas"
+        },
+        {
+          "name": "test_select_when",
+          "type": "DATA step with SELECT/WHEN",
+          "complexity": "medium",
+          "lines": "~40",
+          "expected_confidence": "100% HIGH",
+          "file": "car_origin.sas"
+        }
+      ]
+    },
+    "healthcare_examples": {
+      "uploaded_by": "notebooks/02a_upload_healthcare_example.py",
+      "samples": [
+        {
+          "name": "hc_claims_adjudication",
+          "type": "Complex Claims Processing",
+          "complexity": "HIGH",
+          "lines": "~250",
+          "expected_confidence": "85% HIGH, 15% MEDIUM (review required)",
+          "files": [
+            "claims_adjudication.sas",
+            "eligibility_validation.sas"
+          ],
+          "features": [
+            "Claims validation (completeness, dates, amounts)",
+            "CMS-HCC V28 risk adjustment (RAF scoring)",
+            "Fee schedule pricing",
+            "Duplicate claim detection (7-day window)",
+            "Medical review routing",
+            "Prior authorization eligibility checks",
+            "Benefit limit validation"
+          ],
+          "business_rules": [
+            "High-dollar threshold: >$50K",
+            "Duplicate window: 7 days",
+            "HCC model: V28",
+            "Visit limits per year",
+            "Dollar limits per year"
+          ]
+        }
+      ]
+    }
+  },
+  "documentation": {
+    "QUICKSTART.md": "15-minute setup guide",
+    "DEPLOY_NOTEBOOKS.md": "Detailed deployment instructions (both options)",
+    "README.md": "System architecture overview",
+    "WHERE_TO_FIND_OUTPUT.md": "✅ NEW - Where converted files are located, how to view them",
+    "FILE_NAMING_STRATEGY.md": "✅ NEW - File naming conventions, traceability, embedding original SAS",
+    "notebooks/README.md": "How to use the setup notebooks",
+    "notebooks/02a_upload_healthcare_example.py": "✅ NEW - Complex healthcare claims example",
+    "specifications/": {
+      "SAS_MIGRATION_GUIDE.md": "Complete decomposition strategy",
+      "CONVERSION_WALKTHROUGH.md": "Real examples with expected output",
+      "VOLUME_SETUP.md": "Infrastructure setup reference",
+      "TEST_CONVERSION_EXAMPLE.md": "Detailed test case walkthrough"
+    }
+  },
+  "next_actions": [
+    "✅ ALL NOTEBOOKS FIXED AND READY",
+    "Import 3 notebooks to Databricks workspace (Manual Upload recommended)",
+    "Run 01_setup_volumes.py → Creates infrastructure",
+    "Run 02_upload_sample_sas.py → Loads test data",
+    "Run 03_test_conversion.py → Tests conversion",
+    "Review CONVERSION_REPORT.html for results",
+    "Deploy test pipeline via DAB (optional)",
+    "Upload real SAS code and repeat"
+  ],
+  "fixes_applied": [
+    "✅ Fixed notebook headers (01, 02, 03) - consistent numbering and prerequisites",
+    "✅ Fixed 03_test_conversion.py - uses correct migrate_project() API",
+    "✅ Added dbutils.library.restartPython() after pip install",
+    "✅ Updated all import statements to use correct API",
+    "✅ Added verification checklist at end of notebook 03",
+    "✅ Created notebooks/README.md with usage guide",
+    "✅ All terminology uses SDP (not DLT)",
+    "✅ Clear sequencing and next steps in all notebooks"
+  ]
+}

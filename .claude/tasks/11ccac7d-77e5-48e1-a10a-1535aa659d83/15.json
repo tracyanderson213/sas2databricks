@@ -1,0 +1,9 @@
+{
+  "id": "15",
+  "subject": "Create scripts/README.md documentation",
+  "description": "Create scripts/README.md explaining directory structure (setup/validation/utilities/development), quick reference for common operations (setup, validation, cleanup), usage examples with command-line arguments, authentication notes, and safety warnings for destructive operations.",
+  "activeForm": "Writing scripts directory documentation",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

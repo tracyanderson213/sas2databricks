@@ -1,0 +1,38 @@
+bundle:
+  name: sas2dbx_setup_notebooks
+
+# This bundle deploys the setup notebooks to your workspace
+# After deployment, run them manually in this order:
+#   1. 01_setup_volumes.py
+#   2. 02_upload_sample_sas.py
+#   3. 03_test_conversion.py
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-1952652121322753.13.azuredatabricks.net
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.sas2dbx_setup
+
+resources:
+  # Deploy notebooks to workspace (not as jobs)
+  # These are meant to be run interactively
+
+  # Note: DABs don't have a direct "notebook upload" resource
+  # We'll use workspace file paths that the user can import
+
+  jobs: {}  # No jobs - we just want notebooks in workspace
+
+# Workspace files to sync
+sync:
+  include:
+    - notebooks/*.py
+  exclude:
+    - "**/__pycache__"
+    - "*.pyc"
+    - ".git"
+    - ".databricks"
+
+# No artifacts, permissions, or other complex config needed
+# This is just for uploading notebooks

@@ -1,0 +1,25 @@
+# ============================================================
+# Development Environment Configuration
+# ============================================================
+#
+# Usage:
+#   databricks bundle deploy -t dev --var developer_id=tanderson
+#   databricks bundle run sas_dbx_code_translator -t dev
+#
+# ============================================================
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+    variables:
+      catalog: "na-dbxtraining"
+      developer_id: "shared"  # Override with --var developer_id=your_id
+      schema_prefix: "sas"
+      warehouse_id: "2f51df324d05e45d"
+
+    workspace:
+      host: "https://adb-1952652121322753.13.azuredatabricks.net"
+      # Service principal workspace path (from Training Accelerator)
+      root_path: "/Workspace/Users/57755c23-5f4c-45ac-b2a2-118523d0c1b5/.bundle/${bundle.name}/dev"

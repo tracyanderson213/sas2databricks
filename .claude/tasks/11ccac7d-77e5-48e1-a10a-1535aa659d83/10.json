@@ -1,0 +1,9 @@
+{
+  "id": "10",
+  "subject": "Update converter: change author to \"3Cloud SAS Migration Team\"",
+  "description": "Update author field in generate_intelligent_template() function from \"SAS Migration Team\" to \"3Cloud SAS Migration Team\". Update both the default parameter value and the call site in the conversion loop.",
+  "activeForm": "Updating author attribution to 3Cloud",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

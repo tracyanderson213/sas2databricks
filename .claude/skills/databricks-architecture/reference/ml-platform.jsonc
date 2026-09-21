@@ -1,0 +1,301 @@
+// =============================================================================
+// ML PLATFORM — end-to-end machine learning on Databricks, laid out as a GRID.
+//
+// JSONC (JSON + // comments) for YOU to read. Emit PLAIN JSON (strip //) in the
+// architecture.md ```json fence.
+//
+// WHY THIS EXAMPLE (what it demonstrates):
+//   • `rowGrid: true` — `row` aligns across ALL lanes into shared bands (a matrix):
+//       row 0  UC Registry · Model Serving
+//       row 2  Batch Job · Model Training · App     (row 1 SKIPPED = blank band =
+//       row 3  Medallion · Lakebase · AI Gateway     vertical space so the dense
+//       row 4  Vector Search · RAG Endpoint          registry↔training labels fit)
+//   • Data sources are `type:"source"` tiles; here they carry rows 1-3 to line up
+//     with the grid. Leaving `row` off would just stack them in their lane. `col`
+//     always sets X.
+//   • medallion-table `params.feature_store` → the Feature Store fork + `@out-fs`
+//     handle (training/app read features, NOT gold — see the notes).
+//   • The Unity AI Gateway tile (foundation-model logos) governs frontier calls.
+//   • `note` on nodes/edges = authoring reasoning, NEVER rendered, round-trips.
+//   • One platform `box` wraps the whole flow (not the sources); `db-platform`
+//     banner pinned top-left.
+//
+// Prefer this shape for an ML / model-serving demo. For a simpler
+// ingest→lakehouse→dashboard story use the inline example in SKILL.md's
+// "The format"; for the full platform use architecture-complete.jsonc.
+// =============================================================================
+[
+  {
+    "name": "ML Platform",
+    "story": "Build an end-to-end ML platform: ingest our Postgres, sensor, and PDF data into a governed lakehouse, engineer features, train and register a model with MLflow, then serve it in real time to an app and as a nightly batch job. Add a RAG endpoint over the documents, keep app state in Lakebase, and put everything behind the Unity AI Gateway.",
+    "columns": [
+      "sources",
+      "pipeline",
+      "ml",
+      "serving",
+      "consumers"
+    ],
+    "rowGrid": true,
+    "nodes": [
+      {
+        "id": "src-postgres",
+        "type": "source",
+        "col": "sources",
+        "row": 1,
+        "label": "Postgres",
+        "icon": "file:vendor/postgresql",
+        "ai_reasoning": "A data source = `type:\"source\"` (NOT a catalog component): a demo-authored tile with a vendor/generic `icon` + a `label`/`desc` you set. The library palette's built-in source presets already carry clean labels (Postgres \u00b7 Sensor data \u00b7 PDF documents), so adding one from the palette shows the clean name \u2014 keep the explicit `label` when hand-authoring."
+      },
+      {
+        "id": "src-sensors",
+        "type": "source",
+        "col": "sources",
+        "row": 2,
+        "label": "Sensor data",
+        "icon": "sensorSource"
+      },
+      {
+        "id": "src-pdf",
+        "type": "source",
+        "col": "sources",
+        "row": 3,
+        "label": "PDF documents",
+        "icon": "pdfLogo"
+      },
+      {
+        "id": "uc-model-registry",
+        "type": "uc-model-registry",
+        "col": "ml",
+        "row": 0,
+        "ai_reasoning": "rowGrid layout \u2014 `row` aligns across ALL columns into shared horizontal bands. This tab uses rows 0 \u00b7 2 \u00b7 3 \u00b7 4 (row 1 is deliberately SKIPPED to open a blank band of vertical space between this top ML row and the batch/training row below, so the 'Register model' / 'Load model' / 'Feedback loop' labels there stay readable). Registry + Model Serving are the top band (row 0)."
+      },
+      {
+        "id": "model-serving",
+        "type": "model-serving",
+        "col": "serving",
+        "row": 0
+      },
+      {
+        "id": "lakeflow-jobs",
+        "type": "lakeflow-jobs",
+        "col": "pipeline",
+        "row": 2,
+        "ai_reasoning": "This is the generic `lakeflow-jobs` (orchestration/Jobs) tile RELABELED as a batch scoring job \u2014 there is no dedicated batch-scoring type. For any other scheduled job, reuse `lakeflow-jobs` + a `label`/`desc`.",
+        "label": "Batch Scoring Job",
+        "desc": "Scheduled bulk inference \u2014 loads the registered model and writes predictions back to a gold table."
+      },
+      {
+        "id": "model-training",
+        "type": "model-training",
+        "col": "ml",
+        "row": 2
+      },
+      {
+        "id": "databricks-apps",
+        "type": "databricks-apps",
+        "col": "consumers",
+        "row": 2
+      },
+      {
+        "id": "medallion-table",
+        "type": "medallion-table",
+        "col": "pipeline",
+        "row": 3,
+        "params": {
+          "feature_store": true
+        },
+        "ai_reasoning": "`params.feature_store: true` adds the Feature Store fork off GOLD inside the block AND exposes the `@out-fs` output handle (the `@out-gold` handle is always present). Add `metric_views: true` for a Metric Views fork + `@out-mv`. Edges target these handles: `@out-fs` (features), `@out-gold` (gold), `@l` (ingest in)."
+      },
+      {
+        "id": "lakebase",
+        "type": "lakebase",
+        "col": "serving",
+        "row": 3
+      },
+      {
+        "id": "ai-gateway",
+        "type": "ai-gateway",
+        "col": "consumers",
+        "row": 3
+      },
+      {
+        "id": "vector-search",
+        "type": "vector-search",
+        "col": "ml",
+        "row": 4
+      },
+      {
+        "id": "model-serving#2",
+        "type": "model-serving",
+        "col": "serving",
+        "row": 4,
+        "label": "RAG Endpoint",
+        "desc": "Retrieval-augmented generation \u2014 grounds answers on the Vector Search index."
+      },
+      {
+        "id": "platform-box",
+        "type": "box",
+        "wraps": [
+          "uc-model-registry",
+          "model-serving",
+          "lakeflow-jobs",
+          "model-training",
+          "databricks-apps",
+          "medallion-table",
+          "lakebase",
+          "ai-gateway",
+          "vector-search",
+          "model-serving#2",
+          "governance-block"
+        ],
+        "pad": 40,
+        "z": -2
+      },
+      {
+        "id": "db-platform",
+        "type": "db-platform",
+        "pin": {
+          "at": "top-left",
+          "to": "platform-box"
+        }
+      },
+      {
+        "id": "governance-block",
+        "type": "governance-block",
+        "below": "medallion-table",
+        "gap": 40,
+        "params": { "ai_gateway": false, "genie_ontology": false },
+        "desc": "Unity Catalog governs access, lineage and quality across every table.",
+        "ai_reasoning": "ACCESS-CONTROL only (ai_gateway + genie_ontology off) — this tab already shows a standalone `ai-gateway` tile, so don't repeat the gateway on the bar. Placed BELOW the medallion (the data it governs) and wrapped in the platform box so it reads as part of the governed platform. Governance edges auto-render dashed + arrow-ended."
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-gov-acl",
+        "from": "governance-block@acl",
+        "to": "medallion-table@b",
+        "label": "Secure access"
+      },
+      {
+        "id": "e-pg-med",
+        "from": "src-postgres@r",
+        "to": "medallion-table@l",
+        "flow": true
+      },
+      {
+        "id": "e-sensors-med",
+        "from": "src-sensors@r",
+        "to": "medallion-table@l",
+        "flow": true
+      },
+      {
+        "id": "e-pdf-med",
+        "from": "src-pdf@r",
+        "to": "medallion-table@l",
+        "flow": true
+      },
+      {
+        "id": "e-fs-train",
+        "from": "medallion-table@out-fs",
+        "to": "model-training@l",
+        "flow": true,
+        "label": "Train on features"
+      },
+      {
+        "id": "e-med-vs",
+        "from": "medallion-table@out-gold",
+        "to": "vector-search@l",
+        "flow": true,
+        "label": "Sync to embeddings"
+      },
+      {
+        "id": "e-train-registry",
+        "from": "model-training@t",
+        "to": "uc-model-registry@b",
+        "flow": true,
+        "arrow": "end",
+        "label": "Register model"
+      },
+      {
+        "id": "e-registry-serving",
+        "from": "uc-model-registry@r",
+        "to": "model-serving@l",
+        "flow": true,
+        "label": "Load model"
+      },
+      {
+        "id": "e-registry-batch",
+        "from": "uc-model-registry@l",
+        "to": "lakeflow-jobs@r",
+        "flow": true,
+        "label": "Load model"
+      },
+      {
+        "id": "e-batch-med",
+        "from": "lakeflow-jobs@b",
+        "to": "medallion-table@t",
+        "flow": true,
+        "arrow": "end",
+        "label": "Write predictions to gold"
+      },
+      {
+        "id": "e-vs-rag",
+        "from": "vector-search@r",
+        "to": "model-serving#2@l",
+        "flow": true,
+        "label": "Search text"
+      },
+      {
+        "id": "e-serving-feedback",
+        "from": "model-serving@b",
+        "to": "model-training@t",
+        "arrow": "end",
+        "dashed": true,
+        "shape": "step",
+        "label": "Feedback loop"
+      },
+      {
+        "id": "e-fs-app",
+        "from": "medallion-table@out-fs",
+        "to": "databricks-apps@l",
+        "flow": true,
+        "label": "Features"
+      },
+      {
+        "id": "e-app-serving",
+        "from": "databricks-apps@l",
+        "to": "model-serving@r",
+        "arrow": "end",
+        "label": "Predict"
+      },
+      {
+        "id": "e-app-rag",
+        "from": "databricks-apps@l",
+        "to": "model-serving#2@r",
+        "arrow": "end",
+        "label": "Ask (RAG)"
+      },
+      {
+        "id": "e-gold-lakebase",
+        "from": "medallion-table@out-gold",
+        "to": "lakebase@l",
+        "flow": true,
+        "label": "Sync gold \u2192 Postgres"
+      },
+      {
+        "id": "e-lakebase-app",
+        "from": "lakebase@r",
+        "to": "databricks-apps@l",
+        "flow": true,
+        "label": "Live state"
+      },
+      {
+        "id": "e-app-gateway",
+        "from": "databricks-apps@b",
+        "to": "ai-gateway@t",
+        "arrow": "both",
+        "label": "Frontier-model calls"
+      }
+    ]
+  }
+]

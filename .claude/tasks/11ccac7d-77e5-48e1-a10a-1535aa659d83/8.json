@@ -1,0 +1,9 @@
+{
+  "id": "8",
+  "subject": "Update converter: rename to sas_dbx.py and move to src/converter/",
+  "description": "Rename notebooks/03_convert_sas.py to src/converter/sas_dbx.py. Keep all V7 fixes intact (INT detection, DATE handling, qualified names, etc.). This is just a rename + move operation.",
+  "activeForm": "Renaming converter to sas_dbx.py",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

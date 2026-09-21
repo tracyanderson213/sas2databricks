@@ -1,0 +1,188 @@
+# ============================================================
+# Lakeflow Connect: Adventure Works Ingestion Pipeline
+# ============================================================
+#
+# This file shows how to configure a Lakeflow Connect pipeline
+# to ingest data from Azure SQL Server (Adventure Works database).
+#
+# Prerequisites:
+#   1. UC Connection to SQL Server already exists
+#   2. Network access from Databricks to SQL Server
+#   3. SQL Server has change tracking or CDC enabled (for incremental updates)
+#
+# Usage:
+#   1. Create connection (if not exists):
+#      See: databricks-lakeflow-connect skill
+#   2. Add this resource to databricks.yml
+#   3. Deploy: databricks bundle deploy -t dev
+#   4. Run: databricks bundle run -t dev adventureworks_ingestion
+#
+# ============================================================
+
+resources:
+  pipelines:
+    adventureworks_ingestion:
+      name: "sas_dbx_adventureworks_ingestion_${var.developer_id}"
+
+      # Ingestion definition (NOT libraries - this is key!)
+      ingestion_definition:
+        # UC Connection name (must exist first)
+        connection_name: "adventureworks_sql"
+
+        # Tables to ingest
+        objects:
+          # Customer table (Full Adventure Works - Sales schema)
+          - table:
+              source_schema: "Sales"
+              source_table: "Customer"
+              destination_catalog: "${var.catalog}"
+              destination_schema: "${resources.schemas.sas_dbx_bronze.name}"
+              # Optional: table properties
+              table_configuration:
+                primary_keys: ["CustomerID"]
+
+          # SalesOrderHeader table (Full Adventure Works - Sales schema)
+          - table:
+              source_schema: "Sales"
+              source_table: "SalesOrderHeader"
+              destination_catalog: "${var.catalog}"
+              destination_schema: "${resources.schemas.sas_dbx_bronze.name}"
+              table_configuration:
+                primary_keys: ["SalesOrderID"]
+
+          # Add more tables as needed:
+          # - SalesOrderDetail
+          # - Product
+          # - ProductCategory
+          # etc.
+
+      # Serverless compute (required for Lakeflow Connect)
+      serverless: true
+
+      # Triggered mode (not continuous)
+      continuous: false
+
+      # Development mode
+      development: true
+
+      # Tags
+      tags:
+        project: "sas_dbx_migration"
+        developer_id: "${var.developer_id}"
+        bundle_target: "${bundle.target}"
+        pipeline_type: "ingestion"
+        source: "adventureworks_sql"
+
+# ============================================================
+# Connection Creation (Reference)
+# ============================================================
+#
+# If connection doesn't exist, create it first:
+#
+# Option 1: Via CLI
+# -----------------
+# databricks connections create \
+#   --name adventureworks_sql \
+#   --connection-type sqlserver \
+#   --options '{
+#     "host": "yourserver.database.windows.net",
+#     "port": "1433",
+#     "database": "AdventureWorksLT",
+#     "user": "sqluser",
+#     "password": "{{secrets/scope/key}}"
+#   }'
+#
+# Option 2: Via DAB (for non-OAuth connections)
+# ----------------------------------------------
+# resources:
+#   connections:
+#     adventureworks:
+#       name: adventureworks_sql
+#       connection_type: SQLSERVER
+#       options:
+#         host: yourserver.database.windows.net
+#         port: 1433
+#         database: AdventureWorksLT
+#         user: sqluser
+#         password: "{{secrets/scope/key}}"
+#
+# ============================================================
+# Scheduling
+# ============================================================
+#
+# Lakeflow Connect pipelines run on-demand or via Jobs schedule.
+# To schedule, create a Job with a pipeline_task:
+#
+# resources:
+#   jobs:
+#     adventureworks_sync:
+#       name: "adventureworks_daily_sync_${var.developer_id}"
+#       schedule:
+#         quartz_cron_expression: "0 0 2 * * ?"  # Daily at 2 AM
+#         timezone_id: "America/Chicago"
+#
+#       tasks:
+#         - task_key: sync_adventureworks
+#           pipeline_task:
+#             pipeline_id: "${resources.pipelines.adventureworks_ingestion.id}"
+#
+# ============================================================
+# Incremental Updates
+# ============================================================
+#
+# For CDC (Change Data Capture):
+#   - SQL Server must have CDC enabled on source tables
+#   - Lakeflow Connect automatically tracks changes
+#   - Subsequent runs only process new/changed rows
+#
+# For Change Tracking:
+#   - Lighter-weight alternative to CDC
+#   - Tracks inserts/updates/deletes
+#   - Enable in SQL Server: ALTER DATABASE ... SET CHANGE_TRACKING = ON
+#
+# For Snapshot mode (no CDC):
+#   - Full table refresh each run
+#   - Use for small tables or tables without CDC
+#   - Specify in table_configuration if needed
+#
+# ============================================================
+# Monitoring
+# ============================================================
+#
+# View ingestion logs:
+# SELECT * FROM event_log('<pipeline-id>')
+# WHERE event_type = 'flow_progress'
+# ORDER BY timestamp DESC;
+#
+# Check table freshness:
+# SELECT
+#   table_name,
+#   MAX(_commit_timestamp) as last_updated
+# FROM `catalog`.`schema`.customer
+# GROUP BY table_name;
+#
+# ============================================================
+# Troubleshooting
+# ============================================================
+#
+# Common issues:
+#
+# 1. "Connection not found"
+#    - Verify: databricks connections get adventureworks_sql
+#    - Create connection first
+#
+# 2. "Cannot reach host"
+#    - Check network connectivity
+#    - For on-prem: ExpressRoute/DirectConnect required
+#    - For cloud: VPC peering or public access
+#
+# 3. "Permission denied"
+#    - SQL user needs SELECT permission on source tables
+#    - Databricks SP needs CREATE TABLE in destination schema
+#
+# 4. "Pipeline runs but no data"
+#    - Check event log for errors
+#    - Verify source tables have data
+#    - Check table_configuration settings
+#
+# ============================================================

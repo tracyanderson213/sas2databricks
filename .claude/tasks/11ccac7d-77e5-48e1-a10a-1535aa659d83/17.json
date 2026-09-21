@@ -1,0 +1,9 @@
+{
+  "id": "17",
+  "subject": "Create QUICKSTART.md deployment guide",
+  "description": "Create QUICKSTART.md with step-by-step deployment instructions: Prerequisites (Databricks CLI, .databrickscfg), Step 1: Validate bundle, Step 2: Deploy infrastructure, Step 3: Run code translator job, Step 4: Deploy updated bundle with new pipelines, Step 5: Run data pipelines, Step 6: Verify results. Include troubleshooting section and validation checklist. Keep it concise and actionable.",
+  "activeForm": "Writing quick start deployment guide",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

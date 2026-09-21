@@ -1,0 +1,260 @@
+# ============================================================
+# Databricks Asset Bundle — SAS to Databricks Migration
+# Organization: 3Cloud Solutions
+# ============================================================
+#
+# Reuses service principal from 3Cloud Training Accelerator:
+#   client_id: 57755c23-5f4c-45ac-b2a2-118523d0c1b5
+#   Same workspace, same auth, different bundle scope
+#
+# ── Naming Convention ────────────────────────────────────
+#   Pattern: sas_dbx_{developer_id}_{resource}
+#   Example: sas_dbx_tanderson_bronze
+#
+#   Uses preset variable: ${workspace.current_user.shortName}
+#   No --var developer_id needed (auto-detects username)
+#
+# ── Deploy (uses your username automatically) ────────────
+#   databricks bundle deploy -t dev
+#   databricks bundle run -t dev sas_dbx_code_translator
+#
+# ── Deploy (override username) ───────────────────────────
+#   databricks bundle deploy -t dev --var developer_id=custom
+#   databricks bundle run -t dev sas_dbx_code_translator
+#
+# ── Destroy ──────────────────────────────────────────────
+#   databricks bundle destroy -t dev
+#
+# ============================================================
+
+bundle:
+  name: sas_dbx_migration
+
+# ── Preset Variables (available automatically) ───────────
+# ${bundle.name}                      = sas_dbx_migration
+# ${bundle.target}                    = dev, prod, etc.
+# ${workspace.current_user.shortName} = your username (e.g., tanderson)
+# ─────────────────────────────────────────────────────────
+
+variables:
+  catalog:
+    description: "Unity Catalog — shared training catalog"
+    default: "na-dbxtraining"
+
+  # Developer identifier for schema naming (sas_{developer_id}_{layer})
+  developer_id:
+    description: "Developer identifier — used for schema naming (e.g., tanderson → sas_tanderson_bronze)"
+    default: "${workspace.current_user.short_name}"
+
+  warehouse_id:
+    description: "SQL Warehouse for validation queries"
+    default: "2f51df324d05e45d"
+
+# ── Sync only generated files (not converter notebooks) ──
+sync:
+  include:
+    - "src/**"
+    - "transformations/**"
+    - "specifications/**"
+    - "resources/**"
+    - "scripts/**"
+    - "README.md"
+    - "QUICKSTART.md"
+    - "V7_PRODUCTION_FIXES.md"
+    - "resources.json"
+  exclude:
+    - ".claude/**"
+    - ".databrickscfg"
+    - "test_pat_connection.py"
+
+targets:
+  dev:
+    default: true
+    variables:
+      developer_id: "tanderson"  # Override auto-detected value to match existing schemas
+    workspace:
+      # ── REUSE SERVICE PRINCIPAL WORKSPACE PATH ────────────
+      # Same pattern as 3Cloud Training Accelerator
+      root_path: /Workspace/Users/57755c23-5f4c-45ac-b2a2-118523d0c1b5/.bundle/${bundle.name}/${bundle.target}
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/57755c23-5f4c-45ac-b2a2-118523d0c1b5/.bundle/${bundle.name}/${bundle.target}
+
+resources:
+  # ──────────────────────────────────────────────────────────
+  # Schemas (bronze/silver/gold with developer isolation)
+  # Pattern: sas_{developer_id}_{layer}
+  # Example: sas_tanderson_bronze
+  #
+  # NOTE: Schemas are created automatically by pipelines, not managed here
+  # ──────────────────────────────────────────────────────────
+  # schemas:
+  #   sas_dbx_bronze:
+  #     name: "sas_${var.developer_id}_bronze"
+  #     catalog_name: ${var.catalog}
+  #     comment: "SAS Migration — Bronze layer — ${var.developer_id}"
+  #
+  #   sas_dbx_silver:
+  #     name: "sas_${var.developer_id}_silver"
+  #     catalog_name: ${var.catalog}
+  #     comment: "SAS Migration — Silver layer — ${var.developer_id}"
+  #
+  #   sas_dbx_gold:
+  #     name: "sas_${var.developer_id}_gold"
+  #     catalog_name: ${var.catalog}
+  #     comment: "SAS Migration — Gold layer — ${var.developer_id}"
+
+    # Note: sas2dbx_migrate schema already exists (shared, not managed by bundle)
+    # Volume path: /Volumes/na-dbxtraining/sas2dbx_migrate/sas_migration
+
+  # ══════════════════════════════════════════════════════════════════
+  # JOB: Code Translation Pipeline (SAS → Python)
+  # ══════════════════════════════════════════════════════════════════
+  # Runs: sas_dbx.py converter
+  # Input: SAS files from specifications/ or Volume
+  # Output: Python files in transformations/ + pipeline YAMLs
+  # ══════════════════════════════════════════════════════════════════
+  jobs:
+    sas_dbx_code_translator:
+      name: "sas_dbx_code_translator_${var.developer_id}"
+      description: |
+        SAS to Databricks code translator: converts SAS programs to Spark Declarative Pipeline Python.
+        Run this FIRST to generate transformation code before deploying data pipelines.
+
+        All 13 bug fixes applied automatically — zero manual intervention needed!
+
+      tags:
+        project: "sas_dbx_migration"
+        developer: "tracy_anderson"
+        bundle_target: ${bundle.target}
+        created_by: "dab"
+        sas_migration: "true"
+
+      tasks:
+        - task_key: convert_sas_to_python
+          notebook_task:
+            notebook_path: ./src/converter/sas_dbx.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema_bronze: "sas_tanderson_bronze"
+              schema_silver: "sas_tanderson_silver"
+              schema_gold: "sas_tanderson_gold"
+              schema_prefix: "sas_tanderson"
+              enable_views: "true"
+              api_style: "dp"
+          environment_key: converter
+
+      environments:
+        - environment_key: converter
+          spec:
+            client: "4"
+            dependencies:
+              - sas2databricks
+
+  # ══════════════════════════════════════════════════════════════════
+  # TEMPLATE PIPELINE: Testing & Development
+  # ══════════════════════════════════════════════════════════════════
+  # Use this to test transformed SAS files before creating dedicated pipelines.
+  #
+  # Workflow:
+  #   1. Run converter: databricks bundle run -t dev sas_dbx_code_translator
+  #   2. List files: python list_converted_files.py
+  #   3. Update pipeline: python update_pipeline_file.py template transformed_file.py
+  #   4. Test: Start the pipeline in UI and validate output
+  # ══════════════════════════════════════════════════════════════════
+  pipelines:
+    sas_dbx_template_pipeline:
+      name: "sas_dbx_template_${var.developer_id}"
+      catalog: ${var.catalog}
+      target: default
+
+      configuration:
+        catalog: ${var.catalog}
+        schema_bronze: "sas_${var.developer_id}_bronze"
+        schema_silver: "sas_${var.developer_id}_silver"
+        schema_gold: "sas_${var.developer_id}_gold"
+        enable_views: "true"
+
+      libraries:
+        - file:
+            path: ./transformations/current_transformation.py
+
+      serverless: true
+      photon: true
+      continuous: false
+      development: true
+
+      tags:
+        project: "sas_dbx_migration"
+        developer: "tracy_anderson"
+        bundle_target: ${bundle.target}
+        pipeline_type: "template"
+        created_by: "dab"
+        sas_migration: "true"
+
+    # ══════════════════════════════════════════════════════════════════
+    # ADVENTURE WORKS INGESTION: SQL Server → Bronze
+    # ══════════════════════════════════════════════════════════════════
+    # Ingests Customer & SalesOrderHeader from Adventure Works SQL Server
+    # Proves external database integration for SAS converter validation
+    #
+    # Prerequisites:
+    #   1. UC Connection 'adventureworks_sql' must exist (see QUICK_START_SQL_VALIDATION.md)
+    #   2. Network access to sqldbdbxtraining.database.windows.net
+    #
+    # Workflow:
+    #   1. Deploy: databricks bundle deploy -t dev
+    #   2. Run ingestion: databricks bundle run -t dev adventureworks_ingestion
+    #   3. Verify: databricks tables list sas_dbx_{developer_id}_bronze | grep -E 'customer|salesorderheader'
+    #   4. Run converter on sales_summary.sas (reads from Bronze)
+    #
+    # DISABLED: Requires 'adventureworks_sql' UC Connection to be created first
+    # ══════════════════════════════════════════════════════════════════
+    # adventureworks_ingestion:
+    #   name: "sas_dbx_adventureworks_ingestion_${var.developer_id}"
+    #   catalog: ${var.catalog}
+    #   target: default
+    #
+    #   # Ingestion definition (NOT libraries — this is Lakeflow Connect)
+    #   ingestion_definition:
+    #     # UC Connection to SQL Server (must exist first)
+    #     connection_name: "adventureworks_sql"
+    #
+    #     # Tables to ingest from SQL Server
+    #     objects:
+    #       # Customer table (Sales schema — Full Adventure Works)
+    #       - table:
+    #           source_schema: "Sales"
+    #           source_table: "Customer"
+    #           destination_catalog: "${var.catalog}"
+    #           destination_schema: "sas_${var.developer_id}_bronze"
+    #           table_configuration:
+    #             primary_keys: ["CustomerID"]
+    #
+    #       # SalesOrderHeader table (Sales schema — Full Adventure Works)
+    #       - table:
+    #           source_schema: "Sales"
+    #           source_table: "SalesOrderHeader"
+    #           destination_catalog: "${var.catalog}"
+    #           destination_schema: "sas_${var.developer_id}_bronze"
+    #           table_configuration:
+    #             primary_keys: ["SalesOrderID"]
+    #
+    #   # Serverless compute (required for Lakeflow Connect)
+    #   serverless: true
+    #
+    #   # Triggered mode (not continuous)
+    #   continuous: false
+    #
+    #   # Development mode
+    #   development: true
+    #
+    #   tags:
+    #     project: "sas_dbx_migration"
+    #     developer: "tracy_anderson"
+    #     bundle_target: ${bundle.target}
+    #     pipeline_type: "ingestion"
+    #     created_by: "dab"
+    #     sas_migration: "true"

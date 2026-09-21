@@ -1,0 +1,366 @@
+# Complete, working DAB — deploys a full Databricks demo to ANY workspace.
+#
+# This is a GENERIC reference distilled from a proven end-to-end deploy. Copy
+# it to your project root as `databricks.yml`, rename `demo` → your demo's
+# short name throughout, and point the task paths at your `src/` files. Drop
+# any resource your demo doesn't ship (App, Lakebase, KA/MAS, ML…).
+#
+# What it provisions (all parametrized via --var — no hardcoded IDs):
+#   schema + volumes + SDP pipeline + AI/BI dashboard + Databricks App shells,
+#   created by `bundle deploy`; then a setup job fills them in on `bundle run`:
+#     generate_data → run_pipeline → deploy_metric_view + train_score_ml
+#     + upload_pdfs → deploy_genie/deploy_ka/deploy_mas → grant_app_uc
+#     → export_resources (exits a JSON manifest of every resolved ID).
+#
+# ── 5-command deploy (the user runs these; the skill does NOT bundle-deploy) ─
+#   1. ./app/scripts/lakebase_setup_db.sh --db-name dbgen_<demo>   # Lakebase DB (pre-deploy)
+#   2. databricks bundle deploy   --var catalog=… --var schema=… --var warehouse_id=…
+#   3. databricks bundle run demo_setup   --var …
+#   4. ./app/scripts/lakebase_grant_app_credential.sh --app-name … --project-id … --db-name …
+#   5. ./app/scripts/finalize_app.sh            # harvest export_resources JSON → app.yaml env → deploy app
+#
+# Why the app env is finalized OUTSIDE the bundle (steps 3+5): the Genie / KA /
+# MAS endpoint IDs only exist AFTER the setup job's SDK tasks run, so the bundle
+# can't know them at `deploy` time. The setup job's last task (export_resources)
+# exits a JSON with every ID; finalize_app.sh reads it back and writes app.yaml's
+# env. This keeps a bare `bundle deploy` from ever shipping a half-configured
+# app — the app env is assembled in exactly one place.
+#
+# ⚠️ NEVER `databricks apps update --json` a deployed app out of band to tweak
+#    scopes/config — `update` replaces the whole app spec and silently drops the
+#    `resources` bindings (→ Lakebase SP role deprovisioned → Postgres auth
+#    fails). Change app config ONLY here (+ redeploy) or in app.yaml (+ finalize).
+
+bundle:
+  name: demo
+
+variables:
+  catalog:
+    description: "Unity Catalog for demo resources"
+  schema:
+    description: "Schema within the catalog (created by this bundle)"
+  warehouse_id:
+    description: "SQL Warehouse ID — powers the dashboard + analytics"
+
+  # ── App + Lakebase (drop these if the demo ships no app) ───────────────
+  app_name:
+    description: "Workspace app name (must be unique per workspace)"
+    default: "dbgen-demo"
+  lakebase_project_id:
+    description: "Lakebase project — reused if it already exists"
+    default: "dbdemos-asset-generator"
+  lakebase_branch_id:
+    description: "Lakebase branch within the project"
+    default: "production"
+  lakebase_database_name:
+    description: "Postgres database name. Convention: dbgen_<demo>"
+    default: "dbgen_demo"
+  lakebase_database_id:
+    description: |
+      Lakebase database resource ID — the slug in the App's `postgres` binding
+      path. Convention: `db-` + database_name with underscores → hyphens.
+      Created by app/scripts/lakebase_setup_db.sh.
+    default: "db-dbgen-demo"
+
+  # NOTE: the app's runtime env vars are NOT defined here. They're assembled by
+  # app/scripts/finalize_app.sh after the setup job runs (it harvests the
+  # export_resources task's exit JSON — Genie/KA/MAS IDs the bundle can't know
+  # at deploy time — and writes app.yaml's env). One source of truth for app env.
+  #
+  # Why not the bundle's apps `config.env`? It's silently dropped during
+  # terraform rendering (carries names, loses values), so it can't be the
+  # channel.
+
+# Build the app locally before sync — produces app/dist/server.js +
+# app/client/dist/ (both gitignored). `sync.include` whitelists them past
+# .gitignore so the Apps container has them. Drop this if no app.
+artifacts:
+  default:
+    build: ./app/scripts/build-app.sh
+
+sync:
+  include:
+    - "src/**"
+    - "app/dist/**"          # tsdown output (server bundle)
+    - "app/client/dist/**"   # vite output (client bundle)
+    - "app/drizzle/**"       # generated Drizzle SQL migrations (gitignored;
+                             # build-app.sh runs db:generate → runMigrations()
+                             # reads dist/../drizzle at boot)
+  # The bundle has no root .gitignore, so explicit excludes are required.
+  # node_modules in particular (hundreds of MB) otherwise gets synced + dragged
+  # into the Apps deployment zip — "Preparing source code" then stalls for
+  # minutes. The Apps container runs its own `npm install` against the shipped
+  # lockfile, so deps don't need shipping. Other entries are defensive.
+  #
+  # ⚠️ Also ensure app/package.json + app/package-lock.json are NOT gitignored
+  #    by a repo-root rule — without a deps file the Apps container crashes at
+  #    boot with `ERR_MODULE_NOT_FOUND`. (Add a `!…/package.json` un-ignore if
+  #    your repo root ignores package.json globally.)
+  exclude:
+    - "app/node_modules/**"
+    - "app/.venv/**"
+    - "app/.env"
+    - "app/.env.*"
+    - "app/.preview.pgid"
+    - "app/.DS_Store"
+    - "app/playwright-report/**"
+    - "app/test-results/**"
+    - "app/tests/**"
+
+targets:
+  dev:
+    default: true
+    mode: development   # prefixes resource names with `[dev <user>]` + the
+                        # schema with `dev_<user>_` — isolates concurrent devs.
+                        # Pass resolved names downstream via
+                        # ${resources.schemas.demo_schema.name} (NOT ${var.schema})
+                        # so tasks hit the prefixed schema. Host comes from the
+                        # CLI profile (--profile …).
+  prod:
+    mode: production
+
+resources:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Schema + volumes
+  # ──────────────────────────────────────────────────────────────────────────
+  # NOTE: no `grants:` blocks here. On some workspaces a `grants` on the
+  # `users` group fails at deploy ("Could not find principal"). Grant the app
+  # SP via the grant_app_uc task instead (it targets the SP's client_id).
+  schemas:
+    demo_schema:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: "Demo data"
+
+  volumes:
+    raw_data:
+      catalog_name: ${var.catalog}
+      schema_name: ${var.schema}
+      name: "raw_data"
+      volume_type: "MANAGED"
+    # Add more volumes as the demo needs (e.g. a docs volume for KA PDFs).
+    docs:
+      catalog_name: ${var.catalog}
+      schema_name: ${var.schema}
+      name: "docs"
+      volume_type: "MANAGED"
+      comment: "PDFs for the Knowledge Assistant"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # SDP pipeline — point libraries at your bronze/silver/gold SQL (or Python).
+  # ──────────────────────────────────────────────────────────────────────────
+  pipelines:
+    demo_pipeline:
+      name: "[${bundle.target}] Demo Pipeline"
+      # Resolve through the schema resource so dev-mode's `dev_<user>_` prefix
+      # is applied — tasks + pipeline must agree on the SAME target schema.
+      catalog: ${resources.schemas.demo_schema.catalog_name}
+      target: ${resources.schemas.demo_schema.name}
+      serverless: true
+      photon: true
+      development: true
+      channel: current
+      libraries:
+        - file:
+            path: ./src/pipeline/01_bronze.sql
+        - file:
+            path: ./src/pipeline/02_silver.sql
+        - file:
+            path: ./src/pipeline/03_gold.sql
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Dashboard — dataset_catalog / dataset_schema rebind the embedded queries
+  # per-target, so the SAME dashboard.json works on any catalog/schema.
+  # Requires CLI v0.283.0+. Ship the dashboard JSON with NO catalog/schema on
+  # its datasets (the CLI fills them from these two fields).
+  # ──────────────────────────────────────────────────────────────────────────
+  dashboards:
+    demo_dashboard:
+      display_name: "[${bundle.target}] Demo Dashboard"
+      file_path: ./src/dashboard/dashboard.json
+      warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${resources.schemas.demo_schema.catalog_name}
+      dataset_schema: ${resources.schemas.demo_schema.name}
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Databricks App (drop this whole block + the Lakebase var defaults if the
+  # demo ships no app).
+  # ──────────────────────────────────────────────────────────────────────────
+  apps:
+    demo_app:
+      name: ${var.app_name}
+      description: "Demo app"
+      source_code_path: ./app
+      lifecycle:
+        prevent_destroy: true   # stateful — don't let `bundle destroy` nuke it
+      # OBO scopes for the user token (x-forwarded-access-token). These are the
+      # API-recognized scope STRINGS (different vocabulary from app.yaml's
+      # human-readable user_authorization.scopes — set both; the rendered
+      # terraform's user_api_scopes are what take effect at runtime).
+      user_api_scopes:
+        - serving.serving-endpoints   # /serving-endpoints/* (agent LLM)
+        - ai-gateway                  # ⚠️ REQUIRED for the Responses API — it
+                                      # routes through AI Gateway; without this
+                                      # the OBO token is rejected "403 Invalid
+                                      # Token" even though serving.serving-
+                                      # endpoints passes the scope check.
+        - dashboards.genie            # ask_data → Genie
+        - sql                         # SQL warehouse
+        - sql.statement-execution     # synchronous SQL exec
+        - postgres                    # Lakebase
+        - catalog.catalogs:read
+        - catalog.schemas:read
+        - catalog.tables:read
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+        - name: postgres
+          postgres:
+            branch: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}
+            database: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}/databases/${var.lakebase_database_id}
+            permission: CAN_CONNECT_AND_CREATE
+      # Plain-value env (catalog/schema/IDs) is NOT here — finalize_app.sh
+      # writes it into app.yaml after the setup job. The binding-derived vars
+      # (DATABRICKS_WAREHOUSE_ID, LAKEBASE_ENDPOINT) come from the bindings
+      # above via app.yaml `valueFrom:` entries.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Setup job — everything that must run AFTER `bundle deploy` creates the
+  # resource shells. Tasks pass catalog/schema via base_parameters using the
+  # RESOLVED schema name (dev-mode prefix applied). Cross-task IDs flow via
+  # `{{tasks.<key>.values.<key>}}` (set by dbutils.jobs.taskValues.set).
+  # ──────────────────────────────────────────────────────────────────────────
+  jobs:
+    demo_setup:
+      name: "[${bundle.target}] Demo Setup"
+      description: "data → pipeline → metric view + ML → genie/ka/mas → grants → export IDs"
+      tasks:
+        - task_key: generate_data
+          notebook_task:
+            notebook_path: ./src/data_generation/generate_data.py
+            base_parameters:
+              catalog: ${resources.schemas.demo_schema.catalog_name}
+              schema:  ${resources.schemas.demo_schema.name}
+          environment_key: sdk_default
+
+        - task_key: run_pipeline
+          depends_on: [{ task_key: generate_data }]
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.demo_pipeline.id}
+
+        # Metric views have no PySpark API — this notebook runs the
+        # `CREATE OR REPLACE VIEW … WITH METRICS LANGUAGE YAML` SQL inline.
+        - task_key: deploy_metric_view
+          depends_on: [{ task_key: run_pipeline }]
+          notebook_task:
+            notebook_path: ./src/metric_view/mv_returns.py
+            base_parameters:
+              catalog: ${resources.schemas.demo_schema.catalog_name}
+              schema:  ${resources.schemas.demo_schema.name}
+          environment_key: sdk_default
+
+        - task_key: train_score_ml
+          depends_on: [{ task_key: run_pipeline }]
+          notebook_task:
+            notebook_path: ./src/ml/premium_train_score.py
+            base_parameters:
+              catalog: ${resources.schemas.demo_schema.catalog_name}
+              schema:  ${resources.schemas.demo_schema.name}
+          environment_key: ml
+
+        # Copy pre-rendered PDFs (run html_to_pdf.py locally first) to the docs
+        # volume so the KA can index them. Don't render in-job — the PDF lib
+        # OOMs the smallest serverless client at import.
+        - task_key: upload_pdfs
+          notebook_task:
+            notebook_path: ./src/deploy/upload_pdfs.py
+            base_parameters:
+              catalog: ${resources.schemas.demo_schema.catalog_name}
+              schema:  ${resources.schemas.demo_schema.name}
+          environment_key: sdk_default
+
+        - task_key: deploy_genie
+          depends_on: [{ task_key: run_pipeline }]
+          notebook_task:
+            notebook_path: ./src/deploy/deploy_genie.py
+            base_parameters:
+              catalog:      ${resources.schemas.demo_schema.catalog_name}
+              schema:       ${resources.schemas.demo_schema.name}
+              warehouse_id: ${var.warehouse_id}
+          environment_key: sdk_latest
+
+        - task_key: deploy_ka
+          depends_on: [{ task_key: upload_pdfs }]
+          notebook_task:
+            notebook_path: ./src/deploy/deploy_ka.py
+            base_parameters:
+              catalog: ${resources.schemas.demo_schema.catalog_name}
+              schema:  ${resources.schemas.demo_schema.name}
+          environment_key: sdk_latest
+
+        - task_key: deploy_mas
+          depends_on: [{ task_key: deploy_genie }, { task_key: deploy_ka }]
+          notebook_task:
+            notebook_path: ./src/deploy/deploy_mas.py
+            base_parameters:
+              catalog:          ${resources.schemas.demo_schema.catalog_name}
+              schema:           ${resources.schemas.demo_schema.name}
+              genie_space_id:   "{{tasks.deploy_genie.values.genie_space_id}}"
+              ka_endpoint_name: "{{tasks.deploy_ka.values.ka_endpoint_name}}"
+          environment_key: sdk_latest
+
+        # Grant the app SP UC read privileges (USE_CATALOG/SCHEMA, SELECT,
+        # READ_VOLUME, EXECUTE on the model). Without these the app's first
+        # /api/config hits INSUFFICIENT_PERMISSIONS. (Distinct from
+        # lakebase_grant_app_credential.sh, which grants on the Postgres plane.)
+        - task_key: grant_app_uc
+          depends_on: [{ task_key: train_score_ml }]
+          notebook_task:
+            notebook_path: ./src/deploy/grant_app_uc.py
+            base_parameters:
+              catalog:  ${resources.schemas.demo_schema.catalog_name}
+              schema:   ${resources.schemas.demo_schema.name}
+              app_name: ${var.app_name}
+          environment_key: sdk_latest
+
+        # Final task: exit a JSON manifest of every resolved ID. finalize_app.sh
+        # reads it back via get-run-output (the notebook exit value IS
+        # retrievable post-run; task-values are NOT).
+        - task_key: export_resources
+          depends_on: [{ task_key: deploy_mas }, { task_key: grant_app_uc }]
+          notebook_task:
+            notebook_path: ./src/deploy/export_resources.py
+            base_parameters:
+              app_name:          ${var.app_name}
+              catalog:           ${resources.schemas.demo_schema.catalog_name}
+              schema:            ${resources.schemas.demo_schema.name}
+              dashboard_id:      ${resources.dashboards.demo_dashboard.id}
+              pipeline_id:       ${resources.pipelines.demo_pipeline.id}
+              warehouse_id:      ${var.warehouse_id}
+              genie_space_id:    "{{tasks.deploy_genie.values.genie_space_id}}"
+              ka_endpoint_name:  "{{tasks.deploy_ka.values.ka_endpoint_name}}"
+              mas_endpoint_name: "{{tasks.deploy_mas.values.mas_endpoint_name}}"
+          environment_key: sdk_latest
+
+      # Serverless environments. `client: "4"` is the standard tier. The
+      # agent-bricks APIs (Genie/KA/MAS) need databricks-sdk>=0.114.0.
+      environments:
+        - environment_key: sdk_default
+          spec:
+            client: "4"
+            dependencies:
+              - "faker"          # data gen; swap for your gen's deps
+        - environment_key: ml
+          spec:
+            client: "4"
+            dependencies:
+              - "xgboost"
+              - "scikit-learn"
+              - "mlflow>=2.13.0"
+        - environment_key: sdk_latest
+          spec:
+            client: "4"
+            dependencies:
+              - "databricks-sdk>=0.114.0"

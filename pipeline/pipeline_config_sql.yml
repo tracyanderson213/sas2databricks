@@ -1,0 +1,44 @@
+# HLS SAS DBX Migration — SQL Pipeline Configuration
+# Alternative SQL-based pipeline (same outputs as Python version)
+
+name: hls_sas_dbx_claims_pipeline_sql
+target: na-dbxtraining.hls_sas_dbx_claims
+storage_location: /Volumes/na-dbxtraining/hls_sas_dbx_claims/pipeline_storage_sql
+
+configuration:
+  # SAS business rule constants (referenced in SQL as literals)
+  baseline_weekly_claims: "2500000"
+  spike_threshold_ratio: "1.25"
+  affected_batch_id: "AC-2026-Q1"
+
+clusters:
+  - label: default
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+      mode: ENHANCED
+
+libraries:
+  - notebook:
+      path: /Workspace/Repos/.../pipeline/claims_pipeline_sql.sql
+
+channel: CURRENT
+
+development: true
+
+continuous: false
+
+edition: ADVANCED
+
+photon: true
+
+serverless: true
+
+notifications:
+  - id: on_failure
+    email_recipients:
+      - sarah.chen@hls-sas-dbx.com
+    alerts:
+      - on-update-failure
+      - on-update-fatal-failure
+      - on-flow-failure

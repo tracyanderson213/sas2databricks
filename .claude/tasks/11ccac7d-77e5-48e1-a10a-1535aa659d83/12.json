@@ -1,0 +1,9 @@
+{
+  "id": "12",
+  "subject": "Create DAB bundle: databricks.yml with code translator job",
+  "description": "Create root databricks.yml with: bundle name (sas_dbx_migration), variables (catalog, developer_id, schema_prefix, warehouse_id), schemas (bronze/silver/gold/config), volumes (sas_migration), sas_dbx_code_translator job that runs src/converter/sas_dbx.py, and pipeline_sas_claims pipeline. Include sync patterns for src/, transformations/, specifications/. Use service principal workspace path from Training Accelerator.",
+  "activeForm": "Creating DAB bundle configuration",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

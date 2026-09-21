@@ -1,0 +1,9 @@
+{
+  "id": "20",
+  "subject": "Add Adventure Works SQL Server use case",
+  "description": "Create second use case demonstrating external database integration via Lakeflow Connect or mock data. Includes: connection verification, Lakeflow Connect pipeline config, mock data fallback script, simple SAS file (sales summary), and documentation updates.",
+  "activeForm": "Adding Adventure Works use case",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

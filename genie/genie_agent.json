@@ -1,0 +1,76 @@
+{
+  "data_sources": {
+    "tables": [
+      {
+        "table": "na-dbxtraining.demo_bravo_insurance_claims.gold_daily_summary",
+        "description": "Daily rollup per (date, state, claim_type). Drives the dashboard trend line + KPI cards."
+      },
+      {
+        "table": "na-dbxtraining.demo_bravo_insurance_claims.gold_claims",
+        "description": "Denormalized per-claim fact for investigation — includes policyholder, claim details, appliance info, and affected-batch flag."
+      },
+      {
+        "table": "na-dbxtraining.demo_bravo_insurance_claims.raw_appliances",
+        "description": "Appliance catalog with model names, manufacturers, and categories."
+      },
+      {
+        "table": "na-dbxtraining.demo_bravo_insurance_claims.raw_appliance_batches",
+        "description": "Appliance manufacturing batches with recall notices. Contains the defective seal recall notice for batch AC-2026-Q1."
+      },
+      {
+        "table": "na-dbxtraining.demo_bravo_insurance_claims.raw_policyholders",
+        "description": "Policyholder profiles with state, city, policy type, and coverage limits."
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      "You analyze Bravo Insurance claims data for Sarah (VP Claims Operations, non-technical).\n\nBASELINES: Normal weekly claims ~$2.5M, normal water damage rate ~90 claims/week, anomaly threshold > 20%.\n\nHEADLINE NUMBERS — answer from gold_daily_summary:\n- \"What's our weekly claims total?\" → SUM(claim_amount_usd) — current month, by week\n- \"Claims trend this month?\" → SUM(claim_amount_usd) — current month\n- \"Claims by state?\" → SUM(claim_amount_usd) — group by state (from gold_claims, not daily summary)\n\nINVESTIGATION FLOW for \"Why are claims spiking?\":\n1. gold_daily_summary → SUM(claim_amount_usd) by week → spot the 25% spike (~$3.1M peak ~3 weeks ago, decaying but still above baseline at ~$2.7M)\n2. gold_claims → GROUP BY claim_type ORDER BY COUNT(*) DESC → water_damage dominates the increase\n3. gold_claims WHERE claim_type = 'water_damage' GROUP BY model_name ORDER BY COUNT(*) DESC → AquaClean DW-9500 Series is the outlier\n4. gold_claims WHERE model_name LIKE '%AquaClean DW-9500%' GROUP BY appliance_batch_id ORDER BY COUNT(*) DESC → batch AC-2026-Q1 has ~340 claims, next batch has <20\n5. gold_claims → claim_description WHERE appliance_batch_id = 'AC-2026-Q1' → water leak complaints (\"water pooling\", \"slow leak\", \"water damage behind dishwasher\")\n6. raw_appliance_batches → SELECT recall_notice WHERE appliance_batch_id = 'AC-2026-Q1' → quote the defective seal / Rockford plant / recall issued note inline. THIS IS THE PUNCHLINE — surface it explicitly in the answer.\n\nGEOGRAPHIC FOLLOW-UP (optional, after root cause):\n- \"Which states have the most affected claims?\" → gold_claims WHERE is_affected_batch = TRUE, GROUP BY state, ORDER BY COUNT(*) DESC → IL / IN / OH / MI / WI lead (Midwest concentration).\n\nCUSTOMER FEEDBACK (from affected batch): \"water pooling under dishwasher\" / \"slow leak from dishwasher\" / \"kitchen floor water damage\" / \"discovered water damage behind dishwasher\""
+    ],
+    "example_question_sqls": [
+      {
+        "id": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+        "question": ["What's our weekly claims total this month, and how does it compare to baseline?"],
+        "sql_query": "WITH weekly_claims AS (\n  SELECT\n    DATE_TRUNC('week', gold_daily_summary.date) AS week,\n    SUM(gold_daily_summary.claim_amount_usd) AS weekly_total\n  FROM `na-dbxtraining`.`demo_bravo_insurance_claims`.`gold_daily_summary`\n  WHERE gold_daily_summary.date >= DATE_TRUNC('month', CURRENT_DATE())\n  GROUP BY 1\n)\nSELECT\n  week,\n  weekly_total,\n  weekly_total - 2500000 AS vs_baseline,\n  ROUND((weekly_total - 2500000) / 2500000 * 100, 1) AS pct_vs_baseline\nFROM weekly_claims\nORDER BY week"
+      },
+      {
+        "id": "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7",
+        "question": ["Which appliance batch is driving the spike, and what does the recall notice say?"],
+        "sql_query": "WITH top_batch AS (\n  SELECT gold_claims.appliance_batch_id\n  FROM `na-dbxtraining`.`demo_bravo_insurance_claims`.`gold_claims`\n  WHERE gold_claims.model_name LIKE '%AquaClean DW-9500%'\n  GROUP BY 1\n  ORDER BY COUNT(*) DESC\n  LIMIT 1\n)\nSELECT\n  b.appliance_batch_id,\n  b.manufacture_date,\n  b.plant_location,\n  b.units_produced,\n  b.status,\n  b.recall_notice\nFROM `na-dbxtraining`.`demo_bravo_insurance_claims`.`raw_appliance_batches` b\nINNER JOIN top_batch t ON b.appliance_batch_id = t.appliance_batch_id"
+      },
+      {
+        "id": "c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8",
+        "question": ["Are claims recovering? Show the trend and what's expected next."],
+        "sql_query": "SELECT\n  DATE_TRUNC('week', gold_daily_summary.date) AS week,\n  SUM(gold_daily_summary.claim_amount_usd) AS weekly_claims\nFROM `na-dbxtraining`.`demo_bravo_insurance_claims`.`gold_daily_summary`\nWHERE gold_daily_summary.date >= CURRENT_DATE() - INTERVAL 6 WEEKS\nGROUP BY 1\nORDER BY 1"
+      }
+    ]
+  },
+  "config": {
+    "sample_questions": [
+      {
+        "id": "d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9",
+        "question": ["What's our weekly claims total this month, and how does it compare to baseline?"]
+      },
+      {
+        "id": "e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+        "question": ["Why are claims spiking? Trace it to the claim type and appliance model."]
+      },
+      {
+        "id": "f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1",
+        "question": ["Which appliance batch is driving the spike, and what does the recall notice say?"]
+      },
+      {
+        "id": "g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2",
+        "question": ["What are claimants reporting? Show recent affected-batch claim descriptions."]
+      },
+      {
+        "id": "h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3",
+        "question": ["Where are the affected claims? Group by state."]
+      },
+      {
+        "id": "i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4",
+        "question": ["Are claims recovering? Show the trend and what's expected next."]
+      }
+    ]
+  }
+}

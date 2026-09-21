@@ -1,0 +1,9 @@
+{
+  "id": "9",
+  "subject": "Update converter: schema suffix → schema prefix",
+  "description": "Change widget from \"schema_suffix\" (e.g., \"_sas\") to \"schema_prefix\" (e.g., \"sas\"). Update all code to generate sas_tanderson_bronze, sas_tanderson_silver, sas_tanderson_gold instead of bronze_sas, silver_sas, gold_sas. Update both widget definition and all usage locations including post_process_converted_code, generate_merge_join_code, generate_retain_window_code.",
+  "activeForm": "Updating schema naming to prefix pattern",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

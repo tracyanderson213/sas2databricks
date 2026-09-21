@@ -1,0 +1,9 @@
+{
+  "id": "14",
+  "subject": "Create scripts directory structure and key scripts",
+  "description": "Create scripts/ with subdirectories: setup/, validation/, utilities/, development/. Create key scripts: setup/test_connection.py, setup/create_schemas.py, validation/dry_run_pipeline.py (critical - finds issues before deploy), utilities/reset_schemas.py, utilities/list_conversions.py. Each script should use Databricks SDK with OAuth M2M auth from .databrickscfg.",
+  "activeForm": "Creating scripts directory and utilities",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

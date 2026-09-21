@@ -1,0 +1,9 @@
+{
+  "id": "5",
+  "subject": "Implement MERGE to JOIN translation",
+  "description": "Detect DATA step MERGE patterns and translate to FULL OUTER JOIN with COALESCE and in= flags. Highest impact - fixes 5 broken join occurrences in claims conversion.",
+  "activeForm": "Implementing MERGE translation",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

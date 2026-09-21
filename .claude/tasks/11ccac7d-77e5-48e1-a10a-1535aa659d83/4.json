@@ -1,0 +1,9 @@
+{
+  "id": "4",
+  "subject": "Implement PROC FORMAT extraction",
+  "description": "Parse PROC FORMAT blocks and generate lookup tables/dictionaries. Extract key-value mappings from format definitions. High value - fixes format function issues throughout codebase.",
+  "activeForm": "Implementing PROC FORMAT extraction",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

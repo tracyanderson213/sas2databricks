@@ -1,0 +1,9 @@
+{
+  "id": "11",
+  "subject": "Add pipeline YAML auto-generation to converter",
+  "description": "Add generate_dab_pipeline_yaml() function to sas_dbx.py. After successful conversion, auto-generate a pipeline YAML file in resources/pipelines/pipeline_{base_name}.yml. YAML should reference ${var.developer_id}, ${resources.schemas.*}, and follow DAB conventions. Include tags for source_file, developer_id, pipeline_type.",
+  "activeForm": "Adding pipeline YAML generation feature",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

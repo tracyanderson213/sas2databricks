@@ -1,0 +1,9 @@
+{
+  "id": "18",
+  "subject": "Create project directory structure",
+  "description": "Create complete directory structure: src/converter/, transformations/, specifications/, resources/pipelines/, config/, scripts/setup/, scripts/validation/, scripts/utilities/, scripts/development/. Add .gitkeep files where needed. This is the skeleton that all files will be placed into.",
+  "activeForm": "Creating project directory structure",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,9 @@
+{
+  "id": "16",
+  "subject": "Update main README.md for production deployment",
+  "description": "Update README.md with: project overview (3Cloud SAS Migration Pipeline), architecture diagram reference, quick start guide (deploy bundle, run code translator, run pipeline), directory structure explanation, workflow (Step 1: Deploy, Step 2: Convert, Step 3: Deploy again, Step 4: Run), authentication notes (reuses Training Accelerator SP), and links to other docs (QUICKSTART.md, V7_PRODUCTION_FIXES.md, scripts/README.md).",
+  "activeForm": "Updating main project README",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

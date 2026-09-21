@@ -1,0 +1,9 @@
+{
+  "id": "6",
+  "subject": "Implement RETAIN to Window function translation",
+  "description": "Detect RETAIN patterns for running totals and translate to Window functions with ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW. Fixes running total logic.",
+  "activeForm": "Implementing RETAIN translation",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

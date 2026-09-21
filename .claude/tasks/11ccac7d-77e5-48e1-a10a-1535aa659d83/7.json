@@ -1,0 +1,9 @@
+{
+  "id": "7",
+  "subject": "Implement nested IF/THEN/ELSE collapse",
+  "description": "Detect sequential IF/ELSE blocks assigning same variables and collapse to single CASE WHEN. Fixes multiple-column issue in adjudication logic.",
+  "activeForm": "Implementing IF/THEN/ELSE collapse",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

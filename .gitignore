@@ -1,0 +1,126 @@
+# ============================================================
+# SAS to Databricks Migration - Git Ignore
+# ============================================================
+
+# ── Secrets & Credentials (NEVER COMMIT) ──────────────────
+.databrickscfg
+.anthropic_token
+*.token
+*.secret
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+secrets.yaml
+secrets.yml
+
+# ── Environment Variables ─────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ── Virtual Environments ──────────────────────────────────
+venv/
+ENV/
+env/
+.venv
+.pyenv
+
+# ── Databricks ────────────────────────────────────────────
+# Bundle build artifacts
+.bundle/
+.databricks/
+
+# Databricks Connect local cache
+databricks-connect/
+
+# Checkpoint directories (can be large)
+_checkpoint/
+checkpoints/
+
+# ── IDE & Editors ─────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ── Claude Code ───────────────────────────────────────────
+# Keep skills but exclude session transcripts
+.claude/projects/
+.claude/workflows/
+.claude/.auth
+.claude/auth.json
+.claude/cache/
+
+# ── Testing & Coverage ────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Logs & Temporary Files ────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+
+# ── SAS & Conversion Artifacts ────────────────────────────
+# Keep staging/ and archive/ structure but exclude the actual files if large
+# Uncomment these if your SAS files are large or contain sensitive data:
+# staging/*.sas
+# archive/*.sas
+
+# ── Generated Code (Optional) ─────────────────────────────
+# If you want to track generated transformations, keep them
+# If they're too noisy, uncomment to exclude:
+# transformations/transformed_*.py
+
+# ── Documentation Build Artifacts ─────────────────────────
+docs/_build/
+site/
+
+# ── OS Files ──────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+
+# ── Jupyter Notebooks ─────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── Spark & Delta ─────────────────────────────────────────
+spark-warehouse/
+metastore_db/
+derby.log
+
+# ============================================================
+# CRITICAL: If you accidentally commit secrets, they remain in
+# git history. Use git filter-repo or BFG Repo Cleaner to remove.
+# ============================================================

@@ -1,0 +1,9 @@
+{
+  "id": "13",
+  "subject": "Create DAB config files: dev.yml and prod.yml",
+  "description": "Create config/dev.yml with default variables (catalog: na-dbxtraining, developer_id: shared, schema_prefix: sas, development_mode: true). Create config/prod.yml with production overrides (catalog: sas_migrate if available, development_mode: false). Include targets with workspace configuration.",
+  "activeForm": "Creating DAB environment configurations",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

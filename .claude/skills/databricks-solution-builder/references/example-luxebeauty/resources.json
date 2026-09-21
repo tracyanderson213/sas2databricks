@@ -1,0 +1,44 @@
+{
+  "capabilities": {
+    "buildable": [
+      "synthetic-data-gen",
+      "sdp",
+      "metric-views",
+      "aibi-dashboards",
+      "genie",
+      "knowledge-assistant",
+      "supervisor-agent",
+      "ml-training-serving"
+    ],
+    "talking_track": [
+      "lakeflow-connect",
+      "unity-catalog",
+      "genie-one",
+      "genie-code"
+    ]
+  },
+  "created_resources": {
+    "workspace_folder": "/Workspace/Users/<your-user>/luxebeauty_demo",
+    "catalog": "luxebeauty",
+    "schema": "demo_c360",
+    "warehouse_id": "<your-warehouse-id>",
+    "pipeline_id": "<your-pipeline-uuid>",
+    "metric_view_name": "luxebeauty.demo_c360.mv_returns",
+    "dashboard_id": "<your-dashboard-uuid>",
+    "genie_space_id": "<your-genie-space-id>",
+    "knowledge_assistant_id": "<your-ka-id>",
+    "knowledge_assistant_endpoint": "ka-luxebeauty-endpoint",
+    "multi_agent_supervisor_id": "<your-mas-id>",
+    "multi_agent_supervisor_endpoint": "mas-luxebeauty-endpoint",
+    "ml_model_name": "luxebeauty.demo_c360.customer_premium_classifier",
+    "mlflow_experiment_path": "/Workspace/Users/<your-user>/luxebeauty/experiments/premium_classifier",
+    "app": {
+      "name": "luxebeauty-demo",
+      "deployment_note": "Deployed to workspace via `databricks apps deploy`. See app.md Step 6.",
+      "id": "app-luxebeauty-1234"
+    },
+    "lakebase_project_id": "<lakebase-project-uuid>",
+    "lakebase_project_slug": "dbdemos-asset-generator",
+    "lakebase_database": "dbgen_luxebeauty"
+  }
+}

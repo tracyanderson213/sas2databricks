@@ -1,0 +1,60 @@
+resources:
+  pipelines:
+    sas2dbx_migrate_pipeline:
+      name: sas2dbx_migrate_pipeline_${bundle.target}
+
+      catalog: ${var.catalog}
+      target: ${var.schema}
+
+      development: true
+      continuous: false
+      channel: CURRENT
+      edition: ADVANCED
+      photon: true
+      serverless: true
+
+      configuration:
+        baseline_weekly_claims: "2500000"
+        spike_threshold_ratio: "1.25"
+        affected_batch_id: "AC-2026-Q1"
+        source_catalog: ${var.catalog}
+        source_schema: ${var.source_schema}
+
+      libraries:
+        - notebook:
+            path: ../src/claims_pipeline.py
+
+      # Note: Cluster settings removed - using serverless compute
+
+      notifications:
+        - email_recipients:
+            - tracy.anderson@3cloudsolutions.com
+          alerts:
+            - on-update-failure
+            - on-update-fatal-failure
+            - on-flow-failure
+
+  # Note: Metric views can be created manually after pipeline runs
+  # Uncomment the job below if you want automated metric view creation
+  #
+  # jobs:
+  #   create_metric_views:
+  #     name: create_metric_views_${bundle.target}
+  #
+  #     tasks:
+  #       - task_key: create_metric_views
+  #         sql_task:
+  #           warehouse_id: 2f51df324d05e45d
+  #           file:
+  #             path: ../src/metric_views.sql
+  #
+  #         timeout_seconds: 600
+  #
+  #     schedule:
+  #       quartz_cron_expression: "0 0 2 * * ?"
+  #       timezone_id: "America/Chicago"
+  #       pause_status: PAUSED
+  #
+  #     email_notifications:
+  #       on_failure:
+  #         - tracy.anderson@3cloudsolutions.com
