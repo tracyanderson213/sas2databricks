@@ -591,6 +591,51 @@ echo $DATABRICKS_CONFIG_FILE
 
 ---
 
+## Testing
+
+### Comprehensive Test Suite
+
+**Pytest-based validation** for converter functionality — runs outside Databricks, no runtime dependencies needed!
+
+```bash
+# Install pytest
+pip install pytest
+
+# Run all tests
+pytest tests/ -v
+
+# Expected: 18 passed, 10 xfailed (baseline)
+```
+
+**Test Categories:**
+- ✅ **18 regression tests** — Verify existing functionality (MERGE, RETAIN, DATALINES, etc.)
+- ⚠️ **10 gap tests (xfail)** — Document known limitations from code review
+
+**Key Features:**
+- Mock harness loads `sas_dbx.py` outside Databricks
+- No changes to converter code required
+- Tests call real converter functions (translate_merge_to_join, etc.)
+- Gap tests flip from `XFAIL` to `XPASS` when fixed → clear progress signal!
+
+**Documentation:**
+- **[tests/README.md](tests/README.md)** — Complete test suite guide
+- **[CONVERTER_REVIEW_FINDINGS.md](CONVERTER_REVIEW_FINDINGS.md)** — Detailed gap analysis & action plan
+- **[CONVERTER_STATUS.md](CONVERTER_STATUS.md)** — Coverage matrix & progress tracking
+
+**Running Tests:**
+```bash
+# All tests
+pytest tests/ -v
+
+# Only regression tests
+pytest tests/ -v -m "not gap"
+
+# Only gap tests
+pytest tests/ -v -m gap
+```
+
+---
+
 ## Documentation
 
 ### Quick Start
