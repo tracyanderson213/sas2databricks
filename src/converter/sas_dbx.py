@@ -302,7 +302,8 @@ def post_process_converted_code(code, table_analysis, sas_source_text="", api_st
     if merge_patterns:
         fixes_applied.append(f"Detected {len(merge_patterns)} DATA step MERGE pattern(s)")
         for pattern in merge_patterns:
-            fixes_applied.append(f"  • {pattern['output_table']}: {pattern['join_type'].upper()} JOIN on {pattern['by_vars']}")
+            table_count = len(pattern['tables'])
+            fixes_applied.append(f"  • {pattern['output_table']}: {pattern['join_type'].upper()} JOIN ({table_count} tables) on {pattern['by_vars']}")
 
     # DETECT RETAIN patterns
     retain_patterns = translate_retain_to_window(sas_source_text)
@@ -1485,25 +1486,82 @@ def translate_merge_to_join(sas_source_text, converted_code):
         # Determine join type from post-merge IF logic
         # if flag1; = LEFT JOIN (keep all from table1)
         # if flag1 and flag2; = INNER JOIN
+        # if a or b; = FULL OUTER JOIN
+        # if a and not b; = LEFT ANTI JOIN
         # No if = FULL OUTER JOIN
         join_type = 'full'
         where_clause = None
 
         if 'if ' in post_merge_logic.lower():
-            # Extract IF condition
-            if_match = re.search(r'if\s+(.*?);', post_merge_logic, re.IGNORECASE)
-            if if_match:
-                condition = if_match.group(1).strip()
-                # Check for simple flag tests
-                if len(tables) >= 2:
-                    flag1 = tables[0]['in_flag']
-                    flag2 = tables[1]['in_flag'] if len(tables) > 1 else None
+            # ==================================================================
+            # ENHANCEMENT: Extract ALL IF statements, find the filter IF
+            # ==================================================================
+            # Collect all in= flags to identify filter IFs
+            all_flags = [t['in_flag'] for t in tables if t['in_flag']]
 
-                    if condition == flag1 and flag2:
+            # Extract ALL IF statements
+            all_if_statements = re.findall(r'if\s+(.*?);', post_merge_logic, re.IGNORECASE)
+
+            # Identify the filter IF: contains ONLY in= flags, no data variables
+            filter_condition = None
+            for condition_raw in all_if_statements:
+                condition = condition_raw.strip()
+
+                # Check if this IF only references in= flags
+                # Split by logical operators and check each token
+                tokens = re.split(r'\s+(?:and|or|not)\s+', condition, flags=re.IGNORECASE)
+                is_filter = True
+                for token in tokens:
+                    token_clean = token.strip()
+                    # Skip if it's a flag
+                    if token_clean in all_flags:
+                        continue
+                    # If it contains = or < or > or other operators, it's an assignment/comparison
+                    if re.search(r'[=<>]', token_clean):
+                        is_filter = False
+                        break
+
+                if is_filter and any(flag in condition for flag in all_flags):
+                    filter_condition = condition
+                    break
+
+            # If we found a filter IF, determine join type
+            if filter_condition:
+                condition = filter_condition.lower()
+
+                # Build flag lookup (case-insensitive)
+                flag_map = {t['in_flag'].lower(): i for i, t in enumerate(tables) if t['in_flag']}
+
+                # ==============================================================
+                # Parse join logic: AND, OR, NOT
+                # ==============================================================
+
+                # Pattern 1: Single flag → LEFT JOIN
+                # if a;
+                if len(flag_map) >= 1:
+                    # Check if it's a single flag with no operators
+                    if condition in flag_map:
                         join_type = 'left'
-                        where_clause = f"{tables[0]['name']}.{by_vars} IS NOT NULL"
-                    elif 'and' in condition.lower() and flag1 and flag2:
-                        join_type = 'inner'
+                        table_idx = flag_map[condition]
+                        where_clause = f"{tables[table_idx]['name']}.{by_vars} IS NOT NULL"
+
+                    # Pattern 2: flag1 AND flag2 → INNER JOIN
+                    # if a and b;
+                    elif 'and' in condition and 'not' not in condition:
+                        # Check if all flags are present
+                        flags_in_condition = [flag for flag in flag_map if flag in condition]
+                        if len(flags_in_condition) >= 2:
+                            join_type = 'inner'
+
+                    # Pattern 3: flag1 OR flag2 → FULL OUTER JOIN
+                    # if a or b;
+                    elif 'or' in condition:
+                        join_type = 'full'
+
+                    # Pattern 4: flag1 AND NOT flag2 → LEFT ANTI JOIN
+                    # if a and not b;
+                    elif 'and' in condition and 'not' in condition:
+                        join_type = 'left_anti'
 
         merge_translations.append({
             'output_table': output_table.replace('.', '_'),

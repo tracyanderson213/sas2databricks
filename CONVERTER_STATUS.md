@@ -23,7 +23,7 @@
 | Issue | Risk Level | Pattern | Impact |
 |-------|-----------|---------|--------|
 | ~~**RETAIN: Limited patterns**~~ | ~~🔴 HIGH~~ | ~~Multiple vars, carry-forward~~ | ✅ **FIXED** |
-| **MERGE: Wrong IF** | 🔴 HIGH | Filter IF not first | Wrong join type → wrong results |
+| ~~**MERGE: Wrong IF**~~ | ~~🔴 HIGH~~ | ~~Filter IF not first~~ | ✅ **FIXED** |
 | **LIBNAME: Hardcoded** | 🟡 MEDIUM | Custom libraries | Runtime error on table reference |
 | **DATALINES: Whitespace** | 🟡 MEDIUM | Embedded spaces, delimiters | Rows silently dropped |
 | **PROC FORMAT: Simple only** | 🟢 LOW | Ranges, cross-file | Format not applied |
@@ -56,9 +56,10 @@
 |---------|-----------|-------------|---------|
 | 2-table LEFT | ✅ Yes | ✅ Yes | `merge a(in=x) b; if x;` |
 | 2-table INNER | ✅ Yes | ✅ Yes | `merge a(in=x) b(in=y); if x and y;` |
-| Filter IF not first | ❌ No | ⚠️ Wrong | First IF is assignment, not filter |
-| OR condition | ❌ No | ⚠️ Wrong | `if a or b;` |
-| 3+ tables | ❌ No | ⚠️ Wrong | `merge a(in=x) b(in=y) c(in=z);` |
+| Filter IF not first | ✅ **YES** | ✅ **YES** | Distinguishes filter IF from assignment IF |
+| OR condition | ✅ **YES** | ✅ **YES** | `if a or b;` → FULL JOIN |
+| NOT condition | ✅ **YES** | ✅ **YES** | `if a and not b;` → LEFT ANTI JOIN |
+| 3+ tables | ✅ Yes | ✅ Yes | `merge a(in=x) b(in=y) c(in=z);` |
 
 ### DATALINES Patterns
 
@@ -107,11 +108,11 @@
 
 ### Phase 1: Critical Fixes (Days 1-3)
 - [x] RETAIN: Multiple variables + carry-forward ✅ **DONE**
-- [ ] MERGE: Parse all IFs, support OR/NOT/3+ tables
+- [x] MERGE: Parse all IFs, support OR/NOT/3+ tables ✅ **DONE**
 - [x] FIRST./LAST.: Implement detection + translation ✅ **DONE**
 - [ ] Nested IF → CASE: Consolidate to single expression
 
-**Phase 1 Progress:** 2 of 4 complete (50%)
+**Phase 1 Progress:** 3 of 4 complete (75%)
 
 ### Phase 2: Robustness (Days 4-5)
 - [ ] LIBNAME: Dynamic detection from source
@@ -131,12 +132,12 @@
 
 ### High Risk (Fix Immediately)
 **These produce wrong answers with no warning:**
-1. RETAIN with multiple variables or carry-forward
-2. MERGE with filter IF not first
-3. FIRST./LAST. duplicate detection
-4. Nested IF creating duplicate columns
+1. ~~RETAIN with multiple variables or carry-forward~~ ✅ **FIXED**
+2. ~~MERGE with filter IF not first~~ ✅ **FIXED**
+3. ~~FIRST./LAST. duplicate detection~~ ✅ **FIXED**
+4. Nested IF creating duplicate columns ⚠️ **REMAINING**
 
-**Business Impact:** Claims totals wrong, duplicate records, incorrect categorization
+**Business Impact:** Nested IFs can produce duplicate columns
 
 ### Medium Risk (Fix Soon)
 **These cause runtime errors or data loss:**
@@ -158,11 +159,12 @@
 
 **Current State:**
 - ✅ 5 Genie fixes applied (working)
-- ✅ 3 gaps CLOSED: FIRST./LAST. + RETAIN (multiple vars + carry-forward)
-- ❌ 2 critical gaps remaining (MERGE, LIBNAME)
-- ❌ 2 medium gaps remaining (DATALINES, PROC FORMAT)
-- ❌ 2 missing features remaining (Nested IF → CASE, Macro detection)
-- ✅ 28 automated tests (18 passed, 7 xfailed → was 10!)
+- ✅ 4 gaps CLOSED: FIRST./LAST. + RETAIN (×2) + MERGE
+- ❌ 1 critical gap remaining (Nested IF → CASE)
+- ❌ 1 medium gap remaining (LIBNAME)
+- ❌ 2 low-priority gaps remaining (DATALINES, PROC FORMAT)
+- ❌ 1 missing feature remaining (Macro detection)
+- ✅ 28 automated tests (18 passed, gaps tests flipping to XPASS!)
 
 **Target State:**
 - ✅ All critical gaps fixed
@@ -170,8 +172,8 @@
 - ✅ Comprehensive test coverage
 - ✅ Production-ready
 
-**Timeline:** 4-5 days remaining (30 hours)  
-**Progress:** 3 of 7 gaps closed (43% complete!)
+**Timeline:** 2-3 days remaining (15 hours)  
+**Progress:** 4 of 7 gaps closed (57% complete!)
 
 ---
 

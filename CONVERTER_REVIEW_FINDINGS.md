@@ -49,43 +49,28 @@ The converter is **solid, working code** that handles common cases well. However
 
 ### 2. MERGE Join-Type Inference - Wrong IF Statement
 
-**Location:** `translate_merge_to_join()` line ~1187
+**Status:** ✅ **IMPLEMENTED** (2026-09-22)
 
-**Current Behavior:**
-```python
-re.search(r'if\s+(.*?);', post_merge_logic, ...)  # Grabs FIRST IF
-```
+**Location:** `translate_merge_to_join()` line ~1426
 
-Only recognizes:
-- `if flag1;` → LEFT JOIN
-- `if flag1 and flag2;` → INNER JOIN
+**Implementation:**
+- ✅ Parses ALL IF statements after merge (not just first)
+- ✅ Distinguishes filter IFs from assignment IFs by checking if condition contains only in= flags
+- ✅ Supports OR conditions → FULL JOIN
+- ✅ Supports NOT negation → LEFT ANTI JOIN
+- ✅ Handles 3+ table merges correctly
 
-**Broken Cases:**
-```sas
-/* First IF is assignment, not filter */
-merge claims(in=a) members(in=b);
-if inmember = 0 then elig_flag = 'N';  ← WRONG IF (assignment)
-if a and b;  ← CORRECT IF (filter)
+**Test Results:**
+- ✅ Simple 2-table LEFT join (filter IF first) - regression test passed
+- ✅ Filter IF NOT first (assignment before filter) - NEW pattern works
+- ✅ OR condition (`if a or b;`) - correctly identifies FULL JOIN
+- ✅ NOT negation (`if a and not b;`) - correctly identifies LEFT ANTI JOIN
+- ✅ 3+ tables - correctly handles all flags
+- ✅ Multiple assignment IFs before filter - correctly finds filter IF
 
-/* OR condition */
-if a or b;  ← Not recognized
+**All 6 test cases passed!**
 
-/* 3+ tables */
-merge table1(in=a) table2(in=b) table3(in=c);
-if a and b and c;  ← Only a/b consulted
-```
-
-**Impact:**
-- Infers wrong join type (e.g., INNER when should be LEFT)
-- Produces incorrect results, no warning
-
-**Fix Required:**
-1. Parse ALL IF statements after merge, not just first
-2. Distinguish filter IFs from assignment IFs
-3. Support OR conditions, NOT negation
-4. Handle 3+ table merges
-
-**Priority:** 🔴 HIGH — Wrong join type = wrong business logic
+**Priority:** ~~🔴 HIGH~~ → ✅ **CLOSED**
 
 ---
 
@@ -363,12 +348,12 @@ Create fixture library: one `.sas` file per case, expected output, automated dif
    - ~~Distinguish "fixed" vs "flagged for review" in output~~ ✅ Done
    - **Actual effort:** 2 hours (estimated 4)
 
-2. **MERGE Join-Type Logic Fix**
-   - Parse ALL IF statements after merge
-   - Distinguish filter vs assignment IFs
-   - Support OR/NOT conditions
-   - Handle 3+ tables
-   - **Estimated effort:** 6 hours
+2. ~~**MERGE Join-Type Logic Fix**~~ ✅ **COMPLETE**
+   - ~~Parse ALL IF statements after merge~~ ✅ Done
+   - ~~Distinguish filter vs assignment IFs~~ ✅ Done
+   - ~~Support OR/NOT conditions~~ ✅ Done
+   - ~~Handle 3+ tables~~ ✅ Done
+   - **Actual effort:** 1.5 hours (estimated 6)
 
 3. ~~**FIRST./LAST. Implementation**~~ ✅ **COMPLETE**
    - ~~Detect `if first.var` / `if last.var` patterns~~ ✅ Done
@@ -383,7 +368,7 @@ Create fixture library: one `.sas` file per case, expected output, automated dif
    - **Estimated effort:** 6 hours
 
 **Total Phase 1:** ~20 hours (3 days)  
-**Progress:** 2 of 4 items complete (15% time used, 50% items done) 🚀
+**Progress:** 3 of 4 items complete (17.5% time used, 75% items done) 🚀
 
 ---
 
