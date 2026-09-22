@@ -382,7 +382,7 @@ GROUP BY bronze_source_file, bronze_ingestion_timestamp;
 
 ### Customize Conversion
 
-Edit converter widgets in `src/converter/sas_dbx.py`:
+Edit converter widgets in `src/converter/sas_to_dbx_pipeline_converter.py`:
 
 - `enable_views`: Toggle view vs table for intermediate transformations
 - `api_style`: Change output API (`dp` vs `dlt`)

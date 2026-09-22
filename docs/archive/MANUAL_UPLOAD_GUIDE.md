@@ -145,7 +145,7 @@ You should see 3 folders:
 
 The converter is located at:
 ```
-src/converter/sas_dbx.py
+src/converter/sas_to_dbx_pipeline_converter.py
 ```
 
 **I'll provide this file to you in the next message** (it's 90KB, so I'll show you how to access it).

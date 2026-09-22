@@ -135,7 +135,7 @@ resources:
       tasks:
         - task_key: convert_sas_to_python
           notebook_task:
-            notebook_path: ./src/converter/sas_dbx.py
+            notebook_path: ./src/converter/sas_to_dbx_pipeline_converter.py
             base_parameters:
               catalog: ${var.catalog}
               schema_bronze: "sas_tanderson_bronze"

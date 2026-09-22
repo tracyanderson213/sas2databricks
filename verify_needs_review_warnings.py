@@ -11,7 +11,7 @@ import re
 print("Checking for gap detection in post_process_converted_code...")
 
 # Read the sas_dbx.py file
-with open('src/converter/sas_dbx.py', 'r') as f:
+with open('src/converter/sas_to_dbx_pipeline_converter.py', 'r') as f:
     content = f.read()
 
 # Check if gap detection section exists

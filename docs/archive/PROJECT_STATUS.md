@@ -26,7 +26,7 @@
 
 ## Completed Components
 
-### ✅ Core Converter (src/converter/sas_dbx.py)
+### ✅ Core Converter (src/converter/sas_to_dbx_pipeline_converter.py)
 
 **Features:**
 - Intelligent layer detection (Bronze/Silver/Gold)
@@ -303,7 +303,7 @@ python update_pipeline_file.py yourpipeline transformed_yourfile.py
 - **3Cloud integration:** 3Cloud SAS Migration Team
 
 ### Production Enhancements (This Project)
-- **Converter bug fixes (13):** All integrated into src/converter/sas_dbx.py
+- **Converter bug fixes (13):** All integrated into src/converter/sas_to_dbx_pipeline_converter.py
 - **Workflow automation:** Standardized file structure and helper scripts
 - **DAB configuration:** Multi-developer isolation, OAuth setup
 - **Documentation:** 5 comprehensive guides

@@ -182,7 +182,7 @@ pytest -v -m gap
 ```
 
 ### 2. Implement the Fix
-Edit `src/converter/sas_dbx.py` to add the missing functionality.
+Edit `src/converter/sas_to_dbx_pipeline_converter.py` to add the missing functionality.
 
 ### 3. Run the Gap Test
 ```bash
@@ -363,10 +363,10 @@ pytest -v
 **Solution:** Place files in same directory or set environment variable:
 ```bash
 # Option 1: Place alongside tests
-cp src/converter/sas_dbx.py tests/
+cp src/converter/sas_to_dbx_pipeline_converter.py tests/
 
 # Option 2: Set environment variable
-export SAS_DBX_PATH=src/converter/sas_dbx.py
+export SAS_DBX_PATH=src/converter/sas_to_dbx_pipeline_converter.py
 ```
 
 ---
@@ -376,7 +376,7 @@ export SAS_DBX_PATH=src/converter/sas_dbx.py
 - **Code Review Findings:** `../CONVERTER_REVIEW_FINDINGS.md`
 - **Coverage Matrix:** `../CONVERTER_STATUS.md`
 - **Original 5 Fixes:** `../GENIE_FIXES_APPLIED.md`
-- **Converter Source:** `../src/converter/sas_dbx.py`
+- **Converter Source:** `../src/converter/sas_to_dbx_pipeline_converter.py`
 
 ---
 

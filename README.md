@@ -329,7 +329,7 @@ Authentication is pre-configured in `.databrickscfg` (OAuth M2M).
 
 ---
 
-## Converter (src/converter/sas_dbx.py)
+## Converter (src/converter/sas_to_dbx_pipeline_converter.py)
 
 ### Input
 

@@ -179,7 +179,7 @@ git push -u origin feature/your-feature-name
 git status
 
 # Stage specific files
-git add src/converter/sas_dbx.py
+git add src/converter/sas_to_dbx_pipeline_converter.py
 
 # Or stage all changes
 git add -A
@@ -211,7 +211,7 @@ git pull --rebase origin main
 ### Undo Changes (Before Commit)
 ```bash
 # Discard changes in specific file
-git checkout -- src/converter/sas_dbx.py
+git checkout -- src/converter/sas_to_dbx_pipeline_converter.py
 
 # Discard all uncommitted changes
 git reset --hard HEAD

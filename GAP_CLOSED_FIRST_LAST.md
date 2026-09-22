@@ -30,7 +30,7 @@ This was the #1 priority because:
 - ✅ Determines ORDER BY from preceding PROC SORT
 - ✅ Returns metadata for ROW_NUMBER() window function generation
 
-**Location:** `src/converter/sas_dbx.py` lines 1558-1640
+**Location:** `src/converter/sas_to_dbx_pipeline_converter.py` lines 1558-1640
 
 ---
 
@@ -305,8 +305,8 @@ Missing Features:
 ## Files Changed
 
 ### Implementation
-- ✅ `src/converter/sas_dbx.py` — Added `translate_first_last_to_window()` function
-- ✅ `src/converter/sas_dbx.py` — Integrated into conversion pipeline
+- ✅ `src/converter/sas_to_dbx_pipeline_converter.py` — Added `translate_first_last_to_window()` function
+- ✅ `src/converter/sas_to_dbx_pipeline_converter.py` — Integrated into conversion pipeline
 - ✅ `verify_first_last.py` — Verification script
 
 ### Documentation

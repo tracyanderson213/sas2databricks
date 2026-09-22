@@ -16,7 +16,7 @@ import re
 print("Checking for translate_nested_if_to_case function...")
 
 # Read the sas_dbx.py file
-with open('src/converter/sas_dbx.py', 'r') as f:
+with open('src/converter/sas_to_dbx_pipeline_converter.py', 'r') as f:
     content = f.read()
 
 # Check if function exists
