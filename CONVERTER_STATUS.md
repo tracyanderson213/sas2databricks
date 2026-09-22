@@ -163,9 +163,10 @@
 - ✅ 5 Genie fixes applied (working)
 - ✅ **5 gaps CLOSED:** FIRST./LAST. + RETAIN (×2) + MERGE + Nested IF
 - ✅ **Phase 1 COMPLETE!** All critical fixes implemented
-- ❌ 1 medium gap remaining (LIBNAME)
-- ❌ 2 low-priority gaps remaining (DATALINES, PROC FORMAT)
-- ❌ 1 missing feature remaining (Macro detection)
+- ✅ **"NEEDS REVIEW" warnings added** for all remaining gaps (7 patterns)
+- ❌ 1 medium gap remaining (LIBNAME) - **⚠️ FLAGGED**
+- ❌ 2 low-priority gaps remaining (DATALINES, PROC FORMAT) - **⚠️ FLAGGED**
+- ❌ 1 missing feature remaining (Macro detection) - **⚠️ FLAGGED**
 - ✅ 28 automated tests (18 passed, gap tests flipping to XPASS!)
 
 **Target State:**

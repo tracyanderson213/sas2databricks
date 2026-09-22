@@ -995,6 +995,76 @@ def post_process_converted_code(code, table_analysis, sas_source_text="", api_st
                 warnings.append(f"Consider @dp.temporary_view for '{t['name']}' (small reference data from DATALINES)")
 
     # ==============================================================================
+    # DETECT GAPS - Add "NEEDS REVIEW" warnings for known limitations
+    # ==============================================================================
+
+    # Gap 1: Custom LIBNAME statements (not work/clm/lib)
+    libname_pattern = r'libname\s+(\w+)\s+["\']'
+    custom_libnames = []
+    for match in re.finditer(libname_pattern, sas_source_text, re.IGNORECASE):
+        libname = match.group(1).lower()
+        if libname not in ['work', 'clm', 'lib']:
+            custom_libnames.append(libname)
+
+    if custom_libnames:
+        unique_libnames = sorted(set(custom_libnames))
+        warnings.append(f"⚠️ NEEDS REVIEW: Custom LIBNAME(s) detected: {', '.join(unique_libnames)}")
+        warnings.append(f"   → Converter only recognizes 'work', 'clm', 'lib'. Verify table references are qualified correctly.")
+
+    # Gap 2: Complex DATALINES patterns
+    datalines_issues = []
+
+    # Check for delimiter specification
+    if re.search(r'infile\s+datalines\s+dlm=', sas_source_text, re.IGNORECASE):
+        datalines_issues.append("custom delimiter (dlm=)")
+
+    # Check for fixed-width input
+    if re.search(r'input\s+@\d+', sas_source_text, re.IGNORECASE):
+        datalines_issues.append("fixed-width input (@position)")
+
+    # Check for embedded quotes (potential spaces in values)
+    if re.search(r'datalines;[^;]*["\'][^"\']*\s+[^"\']*["\']', sas_source_text, re.IGNORECASE | re.DOTALL):
+        datalines_issues.append("quoted values with spaces")
+
+    if datalines_issues:
+        warnings.append(f"⚠️ NEEDS REVIEW: DATALINES with {', '.join(datalines_issues)}")
+        warnings.append(f"   → Converter assumes space-delimited values. Verify data parsed correctly.")
+
+    # Gap 3: PROC FORMAT with ranges or LOW/HIGH
+    proc_format_ranges = []
+
+    # Check for numeric ranges (e.g., 0-17='Child')
+    if re.search(r'value\s+\w+\s+\d+-\d+=', sas_source_text, re.IGNORECASE):
+        proc_format_ranges.append("numeric ranges (0-17=...)")
+
+    # Check for LOW/HIGH keywords
+    if re.search(r'\b(low|high)\s*-', sas_source_text, re.IGNORECASE):
+        proc_format_ranges.append("LOW/HIGH keywords")
+
+    if proc_format_ranges:
+        warnings.append(f"⚠️ NEEDS REVIEW: PROC FORMAT with {', '.join(proc_format_ranges)}")
+        warnings.append(f"   → Converter only handles simple key='value' formats. Verify format logic is correct.")
+
+    # Gap 4: SAS Macros
+    macro_pattern = r'%macro\s+(\w+)'
+    macros_found = []
+    for match in re.finditer(macro_pattern, sas_source_text, re.IGNORECASE):
+        macro_name = match.group(1)
+        macros_found.append(macro_name)
+
+    if macros_found:
+        unique_macros = sorted(set(macros_found))
+        warnings.append(f"⚠️ NEEDS REVIEW: SAS Macro(s) detected: {', '.join(unique_macros)}")
+        warnings.append(f"   → Macros are not expanded. Verify logic is correctly translated or expand macros before conversion.")
+
+    # Gap 5: Complex WHERE conditions that might need review
+    # Check for WHERE with IN operator on large lists (potential SQL injection or formatting issues)
+    where_in_pattern = r'where\s+\w+\s+in\s*\([^)]{100,}\)'
+    if re.search(where_in_pattern, sas_source_text, re.IGNORECASE):
+        warnings.append(f"⚠️ NEEDS REVIEW: WHERE clause with large IN(...) list detected")
+        warnings.append(f"   → Verify IN list is correctly formatted in generated SQL.")
+
+    # ==============================================================================
     # Add summary comment at top
     # ==============================================================================
     if fixes_applied or warnings or datalines_parsed:
