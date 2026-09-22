@@ -336,6 +336,15 @@ def post_process_converted_code(code, table_analysis, sas_source_text="", api_st
         for pattern in first_last_patterns:
             fixes_applied.append(f"  • {pattern['output_table']}: Keep {pattern['filter_type']} of {pattern['partition_by']}")
 
+    # DETECT Nested IF/ELSE patterns (consolidate to CASE WHEN)
+    nested_if_patterns = translate_nested_if_to_case(sas_source_text)
+
+    if nested_if_patterns:
+        fixes_applied.append(f"Detected {len(nested_if_patterns)} nested IF/ELSE pattern(s) for CASE WHEN consolidation")
+        for pattern in nested_if_patterns:
+            branch_count = pattern['branch_count']
+            fixes_applied.append(f"  • {pattern['output_table']}: {pattern['target_var']} ({branch_count} branches)")
+
     # ==============================================================================
     # INSERT MISSING DATALINES TABLES (if sas2databricks skipped them) - BUG FIX #3
     # ==============================================================================
@@ -1731,6 +1740,159 @@ def translate_retain_to_window(sas_source_text):
     return retain_patterns
 
 print("✅ RETAIN translator ready")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Nested IF/ELSE → CASE WHEN Consolidation
+
+# COMMAND ----------
+
+def translate_nested_if_to_case(sas_source_text):
+    """
+    Detect nested IF/ELSE patterns and consolidate to CASE WHEN
+
+    Detects patterns like:
+        if age < 18 then agegroup = 'Child';
+        else if age < 65 then agegroup = 'Adult';
+        else agegroup = 'Senior';
+
+    And generates metadata for CASE WHEN consolidation.
+
+    Only consolidates patterns with 3+ branches (IF + ELSE IF + ...).
+    Simple 2-branch IF/ELSE is left as-is (common pattern, not worth consolidating).
+    """
+    import re
+
+    nested_if_patterns = []
+
+    # Find DATA steps
+    data_step_pattern = r'data\s+(\w+\.\w+|\w+);(.*?)run;'
+
+    for data_match in re.finditer(data_step_pattern, sas_source_text, re.IGNORECASE | re.DOTALL):
+        output_table = data_match.group(1)
+        data_step_body = data_match.group(2)
+
+        # ==================================================================
+        # Find nested IF patterns: if ... then var = value; else if ...
+        # ==================================================================
+        # Pattern: one or more IF/ELSE IF assigning to same variable
+
+        # Strategy: Find all IF statements in this DATA step, group by target variable
+
+        # Pattern for standalone IF statement: if <condition> then <var> = <value>;
+        # Use negative lookbehind to NOT match "else if"
+        if_pattern = r'(?<!else\s)if\s+(.*?)\s+then\s+(\w+)\s*=\s*([^;]+);'
+
+        # Find all standalone IF statements (not "else if")
+        all_ifs = []
+        for if_match in re.finditer(if_pattern, data_step_body, re.IGNORECASE):
+            # Additional check: make sure "else" isn't within 10 chars before match
+            start_pos = if_match.start()
+            lookback = data_step_body[max(0, start_pos-10):start_pos].lower()
+            if 'else' in lookback:
+                continue  # Skip this, it's an "else if"
+
+            condition = if_match.group(1).strip()
+            target_var = if_match.group(2).strip()
+            value = if_match.group(3).strip()
+
+            all_ifs.append({
+                'condition': condition,
+                'target_var': target_var,
+                'value': value,
+                'position': if_match.start()
+            })
+
+        # Pattern for ELSE IF: else if <condition> then <var> = <value>;
+        else_if_pattern = r'else\s+if\s+(.*?)\s+then\s+(\w+)\s*=\s*([^;]+);'
+
+        for else_if_match in re.finditer(else_if_pattern, data_step_body, re.IGNORECASE):
+            condition = else_if_match.group(1).strip()
+            target_var = else_if_match.group(2).strip()
+            value = else_if_match.group(3).strip()
+
+            all_ifs.append({
+                'condition': condition,
+                'target_var': target_var,
+                'value': value,
+                'position': else_if_match.start(),
+                'is_else_if': True
+            })
+
+        # Pattern for final ELSE: else <var> = <value>;
+        else_pattern = r'else\s+(\w+)\s*=\s*([^;]+);'
+
+        final_elses = []
+        for else_match in re.finditer(else_pattern, data_step_body, re.IGNORECASE):
+            target_var = else_match.group(1).strip()
+            value = else_match.group(2).strip()
+
+            # Check this isn't part of "else if" (would have been caught above)
+            # Look back a few chars to see if there's "if" before "else"
+            start_pos = else_match.start()
+            lookback = data_step_body[max(0, start_pos-10):start_pos]
+            if 'if' not in lookback.lower():
+                final_elses.append({
+                    'target_var': target_var,
+                    'value': value,
+                    'position': else_match.start()
+                })
+
+        # ==================================================================
+        # Group by target variable
+        # ==================================================================
+        var_groups = {}
+
+        for if_stmt in all_ifs:
+            var = if_stmt['target_var']
+            if var not in var_groups:
+                var_groups[var] = []
+            var_groups[var].append(if_stmt)
+
+        # Add final ELSEs to their groups
+        for else_stmt in final_elses:
+            var = else_stmt['target_var']
+            if var in var_groups:
+                var_groups[var].append(else_stmt)
+
+        # ==================================================================
+        # Identify consolidation candidates
+        # ==================================================================
+        for target_var, statements in var_groups.items():
+            # Only consolidate if 3+ branches
+            # (2 branches is just "if/else", not worth consolidating)
+            if len(statements) < 3:
+                continue
+
+            # Sort by position to get correct order
+            statements.sort(key=lambda x: x['position'])
+
+            # Build branches list
+            branches = []
+            for stmt in statements:
+                if 'condition' in stmt:
+                    branches.append({
+                        'condition': stmt['condition'],
+                        'value': stmt['value']
+                    })
+                else:
+                    # Final ELSE (no condition)
+                    branches.append({
+                        'condition': None,  # ELSE branch
+                        'value': stmt['value']
+                    })
+
+            nested_if_patterns.append({
+                'output_table': output_table.replace('.', '_'),
+                'target_var': target_var,
+                'branches': branches,
+                'branch_count': len(branches)
+            })
+
+    return nested_if_patterns
+
+print("✅ Nested IF → CASE WHEN translator ready")
 
 # COMMAND ----------
 

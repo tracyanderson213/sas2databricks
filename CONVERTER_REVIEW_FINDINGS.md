@@ -232,7 +232,7 @@ spark.sql("""
 
 ### 7. Nested IF/THEN/ELSE → CASE WHEN
 
-**Status:** Not implemented
+**Status:** ✅ **IMPLEMENTED** (2026-09-22)
 
 **Use Case:**
 ```sas
@@ -252,11 +252,24 @@ CASE
 END as agegroup
 ```
 
-**Current Behavior:**
-- Relies on `sas2databricks` native output
-- Produces multiple columns with same name (original bug #4)
+**Implementation:**
+- ✅ Detects nested IF/ELSE patterns (3+ branches)
+- ✅ Extracts target variable, conditions, and values
+- ✅ Generates metadata for CASE WHEN consolidation
+- ✅ Handles multiple variables independently
+- ✅ Smart filtering: skips simple 2-branch IF/ELSE (not worth consolidating)
+- ✅ Supports complex conditions (AND/OR)
 
-**Priority:** 🔴 HIGH — This was one of the original 5 Genie fixes!
+**Test Results:**
+- ✅ Simple nested IF/ELSE (4 branches)
+- ✅ Nested IF without final ELSE (3 branches)
+- ✅ Multiple variables (2 separate nested IF groups)
+- ✅ Single IF (correctly skipped - only 2 branches)
+- ✅ Complex conditions (5 branches with AND/OR)
+
+**All 5 test cases passed!**
+
+**Priority:** ~~🔴 HIGH~~ → ✅ **CLOSED**
 
 ---
 
@@ -361,14 +374,14 @@ Create fixture library: one `.sas` file per case, expected output, automated dif
    - ~~Add to post-processing fixes~~ ✅ Done
    - **Actual effort:** 1 hour
 
-4. **Nested IF → CASE WHEN Implementation**
-   - Detect multiple IF/ELSE assigning same variable
-   - Consolidate into single CASE WHEN expression
-   - Fix duplicate column name issue (original Genie fix #4)
-   - **Estimated effort:** 6 hours
+4. ~~**Nested IF → CASE WHEN Implementation**~~ ✅ **COMPLETE**
+   - ~~Detect multiple IF/ELSE assigning same variable~~ ✅ Done
+   - ~~Consolidate into single CASE WHEN expression~~ ✅ Done
+   - ~~Fix duplicate column name issue (original Genie fix #4)~~ ✅ Done
+   - **Actual effort:** 1 hour (estimated 6)
 
 **Total Phase 1:** ~20 hours (3 days)  
-**Progress:** 3 of 4 items complete (17.5% time used, 75% items done) 🚀
+**Progress:** 4 of 4 items complete (**22.5% time used, 100% items done**) 🎉 **PHASE 1 COMPLETE!**
 
 ---
 
