@@ -308,9 +308,24 @@ def post_process_converted_code(code, table_analysis, sas_source_text="", api_st
     retain_patterns = translate_retain_to_window(sas_source_text)
 
     if retain_patterns:
-        fixes_applied.append(f"Detected {len(retain_patterns)} RETAIN pattern(s) for running totals")
+        running_sum_count = sum(1 for p in retain_patterns if p.get('pattern_type') == 'running_sum')
+        carry_forward_count = sum(1 for p in retain_patterns if p.get('pattern_type') == 'carry_forward')
+
+        if running_sum_count > 0 and carry_forward_count > 0:
+            fixes_applied.append(f"Detected {len(retain_patterns)} RETAIN pattern(s): {running_sum_count} running sum, {carry_forward_count} carry-forward")
+        elif running_sum_count > 0:
+            fixes_applied.append(f"Detected {running_sum_count} RETAIN pattern(s) for running totals")
+        else:
+            fixes_applied.append(f"Detected {carry_forward_count} RETAIN pattern(s) for carry-forward")
+
         for pattern in retain_patterns:
-            fixes_applied.append(f"  • {pattern['output_table']}: {pattern['retain_var']} accumulates {pattern['accum_source']}")
+            if pattern.get('pattern_type') == 'running_sum':
+                fixes_applied.append(f"  • {pattern['output_table']}: {pattern['retain_var']} accumulates {pattern.get('accum_source', 'N/A')}")
+            elif pattern.get('pattern_type') == 'carry_forward':
+                fixes_applied.append(f"  • {pattern['output_table']}: {pattern['retain_var']} carries forward from {pattern.get('source_var', 'N/A')}")
+            else:
+                # Fallback for legacy patterns
+                fixes_applied.append(f"  • {pattern['output_table']}: {pattern['retain_var']}")
 
     # DETECT FIRST./LAST. patterns (duplicate detection)
     first_last_patterns = translate_first_last_to_window(sas_source_text)
@@ -1518,34 +1533,130 @@ def translate_retain_to_window(sas_source_text):
 
     RETAIN preserves variable across rows - needs window with proper ORDER BY.
 
-    Pattern: retain var; if first.key then var=0; var+amount;
+    Patterns supported:
+    1. Single variable running sum: retain var; var+amount;
+    2. Multiple variables running sum: retain var1 var2 0 0; var1+amt1; var2+amt2;
+    3. Carry-forward (last non-missing): retain var; if not missing(src) then var=src;
+
     Translation: SUM(amount) OVER (PARTITION BY key ORDER BY sort_col ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+              OR: LAST_VALUE(src, true) OVER (PARTITION BY key ORDER BY sort_col ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
     """
     import re
 
     retain_patterns = []
 
-    # Find DATA step with RETAIN
-    # Pattern: data output; set input; by key; retain var; if first.key then var=initial; var + amount; run;
-    # CRITICAL FIX: Use negative lookahead ((?:(?!run;).)* to prevent crossing DATA step boundaries
-    # AND use (\w+(?:\s+\w+)*) for BY vars to only match word tokens
-    retain_pattern = r'data\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)set\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)by\s+(\w+(?:\s+\w+)*)\s*;((?:(?!run;).)*?)retain\s+(\w+)((?:(?!run;).)*?)(\w+)\s*\+\s*(\w+)((?:(?!run;).)*?)run;'
+    # =========================================================================
+    # PATTERN 1 & 2: RUNNING SUM (single or multiple variables)
+    # =========================================================================
+    # Pattern: data output; set input; by key; retain var1 var2 ...; var1 + amount1; var2 + amount2; run;
+    # First, find DATA steps with RETAIN statements
+    data_step_pattern = r'data\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)set\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)by\s+(\w+(?:\s+\w+)*)\s*;((?:(?!run;).)*?)retain\s+([\w\s\d]+)\s*;((?:(?!run;).)*?)run;'
 
-    for match in re.finditer(retain_pattern, sas_source_text, re.IGNORECASE | re.DOTALL):
+    for match in re.finditer(data_step_pattern, sas_source_text, re.IGNORECASE | re.DOTALL):
         output_table = match.group(1)
-        input_table = match.group(3)  # Updated: was group(2)
-        by_vars = match.group(5).strip()  # Updated: was group(3)
-        retain_var = match.group(7).strip()  # Updated: was group(4)
-        # Group 9 is the variable being incremented (e.g., ytd_paid)
-        # Group 10 is the accumulation source (e.g., billed_amount)
-        accum_var = match.group(9).strip()  # Updated: was group(5)
-        accum_source = match.group(10).strip()  # Updated: was group(6)
+        input_table = match.group(3)
+        by_vars = match.group(5).strip()
+        retain_statement = match.group(7).strip()  # e.g., "ytd_paid 0" or "ytd_paid claim_count 0 0"
+        data_step_body = match.group(8)  # Everything after RETAIN until run;
 
-        # Verify the accumulation variable matches the retain variable
-        if accum_var == retain_var:
+        # Parse RETAIN statement to extract all variables
+        # Format: var1 [init1] var2 [init2] ...
+        # Initial values are optional and can be numeric (0, 0.0) or variable names
+        retain_parts = retain_statement.split()
+        retained_vars = []
+        i = 0
+        while i < len(retain_parts):
+            var = retain_parts[i]
+            # Check if this looks like a variable name (starts with letter or underscore)
+            if re.match(r'^[a-zA-Z_]\w*$', var):
+                retained_vars.append(var)
+                # Skip next token if it's a numeric initial value
+                if i + 1 < len(retain_parts) and re.match(r'^-?\d+\.?\d*$', retain_parts[i + 1]):
+                    i += 2  # Skip both var and init value
+                else:
+                    i += 1  # Just skip var, no init value
+            else:
+                i += 1  # Skip non-variable tokens
 
+        # Now find accumulation statements for each retained variable
+        # Pattern: var + source  or  var = var + source
+        for retain_var in retained_vars:
+            # Look for: var + source; (shorthand)
+            accum_pattern = rf'\b{retain_var}\s*\+\s*(\w+)\s*;'
+            accum_match = re.search(accum_pattern, data_step_body, re.IGNORECASE)
+
+            if accum_match:
+                accum_source = accum_match.group(1).strip()
+
+                # Determine ordering - look for PROC SORT before this DATA step
+                sort_pattern = rf'proc\s+sort\s+data\s*=\s*{re.escape(input_table)}.*?by\s+(.*?);'
+                sort_match = re.search(sort_pattern, sas_source_text[:match.start()], re.IGNORECASE | re.DOTALL)
+                order_by = sort_match.group(1).strip() if sort_match else by_vars
+
+                retain_patterns.append({
+                    'output_table': output_table.replace('.', '_'),
+                    'input_table': input_table.replace('.', '_'),
+                    'partition_by': by_vars,
+                    'order_by': order_by,
+                    'retain_var': retain_var,
+                    'accum_source': accum_source,
+                    'pattern_type': 'running_sum'
+                })
+
+    # =========================================================================
+    # PATTERN 3: CARRY-FORWARD (last non-missing value)
+    # =========================================================================
+    # Pattern: retain var; if not missing(source) then var = source;
+    #       OR: retain var; if source ~= . then var = source;  (SAS ~= means "not equal")
+    # Split into two separate patterns for clarity
+
+    # Pattern 3a: if not missing(source) then var = source;
+    carry_forward_pattern_a = r'data\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)set\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)by\s+(\w+(?:\s+\w+)*)\s*;((?:(?!run;).)*?)retain\s+(\w+)\s*;((?:(?!run;).)*?)if\s+not\s+missing\((\w+)\)\s+then\s+(\w+)\s*=\s*(\w+)\s*;'
+
+    for match in re.finditer(carry_forward_pattern_a, sas_source_text, re.IGNORECASE | re.DOTALL):
+        output_table = match.group(1)
+        input_table = match.group(3)
+        by_vars = match.group(5).strip()
+        retain_var = match.group(7).strip()
+        source_var = match.group(9).strip()  # from not missing(source)
+        target_var = match.group(10).strip()  # left side of =
+        assigned_var = match.group(11).strip()  # right side of =
+
+        # Verify that target matches retained variable, and assigned matches source
+        # Pattern: if not missing(source) then retain_var = source;
+        if target_var == retain_var and assigned_var == source_var:
             # Determine ordering - look for PROC SORT before this DATA step
-            sort_pattern = rf'proc\s+sort\s+data={input_table}.*?by\s+(.*?);'
+            sort_pattern = rf'proc\s+sort\s+data\s*=\s*{re.escape(input_table)}.*?by\s+(.*?);'
+            sort_match = re.search(sort_pattern, sas_source_text[:match.start()], re.IGNORECASE | re.DOTALL)
+            order_by = sort_match.group(1).strip() if sort_match else by_vars
+
+            retain_patterns.append({
+                'output_table': output_table.replace('.', '_'),
+                'input_table': input_table.replace('.', '_'),
+                'partition_by': by_vars,
+                'order_by': order_by,
+                'retain_var': retain_var,  # Use retain_var, not target_var
+                'source_var': source_var,
+                'pattern_type': 'carry_forward'
+            })
+
+    # Pattern 3b: if var ~= . then target = var;  (SAS ~= means "not equal to")
+    carry_forward_pattern_b = r'data\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)set\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)by\s+(\w+(?:\s+\w+)*)\s*;((?:(?!run;).)*?)retain\s+(\w+)\s*;((?:(?!run;).)*?)if\s+(\w+)\s*~=\s*\.\s+then\s+(\w+)\s*=\s*(\w+)\s*;'
+
+    for match in re.finditer(carry_forward_pattern_b, sas_source_text, re.IGNORECASE | re.DOTALL):
+        output_table = match.group(1)
+        input_table = match.group(3)
+        by_vars = match.group(5).strip()
+        retain_var = match.group(7).strip()
+        source_var = match.group(9).strip()  # from var ~= .
+        target_var = match.group(10).strip()  # left side of =
+        assigned_var = match.group(11).strip()  # right side of =
+
+        # Verify that target matches retained variable, and assigned matches source
+        # Pattern: if source ~= . then retain_var = source;
+        if target_var == retain_var and assigned_var == source_var:
+            # Determine ordering - look for PROC SORT before this DATA step
+            sort_pattern = rf'proc\s+sort\s+data\s*=\s*{re.escape(input_table)}.*?by\s+(.*?);'
             sort_match = re.search(sort_pattern, sas_source_text[:match.start()], re.IGNORECASE | re.DOTALL)
             order_by = sort_match.group(1).strip() if sort_match else by_vars
 
@@ -1555,7 +1666,8 @@ def translate_retain_to_window(sas_source_text):
                 'partition_by': by_vars,
                 'order_by': order_by,
                 'retain_var': retain_var,
-                'accum_source': accum_source
+                'source_var': source_var,
+                'pattern_type': 'carry_forward'
             })
 
     return retain_patterns
