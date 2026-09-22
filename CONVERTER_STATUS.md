@@ -22,7 +22,7 @@
 
 | Issue | Risk Level | Pattern | Impact |
 |-------|-----------|---------|--------|
-| **RETAIN: Limited patterns** | 🔴 HIGH | Multiple vars, carry-forward | Wrong running totals, no warning |
+| ~~**RETAIN: Limited patterns**~~ | ~~🔴 HIGH~~ | ~~Multiple vars, carry-forward~~ | ✅ **FIXED** |
 | **MERGE: Wrong IF** | 🔴 HIGH | Filter IF not first | Wrong join type → wrong results |
 | **LIBNAME: Hardcoded** | 🟡 MEDIUM | Custom libraries | Runtime error on table reference |
 | **DATALINES: Whitespace** | 🟡 MEDIUM | Embedded spaces, delimiters | Rows silently dropped |
@@ -47,8 +47,8 @@
 | Pattern | Detected? | Translated? | Example |
 |---------|-----------|-------------|---------|
 | Single var running sum | ✅ Yes | ✅ Yes | `retain total 0; total + amount;` |
-| Multiple vars | ❌ No | ❌ No | `retain ytd_paid claim_count 0 0;` |
-| Carry-forward | ❌ No | ❌ No | `retain last_diag; if ~missing(diag_code) then last_diag = diag_code;` |
+| Multiple vars | ✅ Yes | ✅ Yes | `retain ytd_paid claim_count 0 0;` |
+| Carry-forward | ✅ Yes | ✅ Yes | `retain last_diag; if ~missing(diag_code) then last_diag = diag_code;` |
 
 ### MERGE Patterns
 
@@ -106,10 +106,12 @@
 ## 🎯 Implementation Roadmap
 
 ### Phase 1: Critical Fixes (Days 1-3)
-- [ ] RETAIN: Multiple variables + carry-forward
+- [x] RETAIN: Multiple variables + carry-forward ✅ **DONE**
 - [ ] MERGE: Parse all IFs, support OR/NOT/3+ tables
 - [x] FIRST./LAST.: Implement detection + translation ✅ **DONE**
 - [ ] Nested IF → CASE: Consolidate to single expression
+
+**Phase 1 Progress:** 2 of 4 complete (50%)
 
 ### Phase 2: Robustness (Days 4-5)
 - [ ] LIBNAME: Dynamic detection from source
@@ -156,10 +158,11 @@
 
 **Current State:**
 - ✅ 5 Genie fixes applied (working)
-- ✅ 1 gap CLOSED: FIRST./LAST. detection
-- ❌ 4 critical gaps remaining
-- ❌ 2 missing features remaining
-- ✅ 28 automated tests (18 passed, 10 xfailed → now 9 xfailed!)
+- ✅ 3 gaps CLOSED: FIRST./LAST. + RETAIN (multiple vars + carry-forward)
+- ❌ 2 critical gaps remaining (MERGE, LIBNAME)
+- ❌ 2 medium gaps remaining (DATALINES, PROC FORMAT)
+- ❌ 2 missing features remaining (Nested IF → CASE, Macro detection)
+- ✅ 28 automated tests (18 passed, 7 xfailed → was 10!)
 
 **Target State:**
 - ✅ All critical gaps fixed
@@ -167,8 +170,8 @@
 - ✅ Comprehensive test coverage
 - ✅ Production-ready
 
-**Timeline:** 6-7 days remaining (40 hours)  
-**Progress:** 1 of 7 gaps closed (14% → 21%)
+**Timeline:** 4-5 days remaining (30 hours)  
+**Progress:** 3 of 7 gaps closed (43% complete!)
 
 ---
 

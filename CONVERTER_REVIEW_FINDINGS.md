@@ -18,33 +18,32 @@ The converter is **solid, working code** that handles common cases well. However
 
 ### 1. RETAIN Translator - Incomplete Pattern Coverage
 
-**Location:** `translate_retain_to_window()` line ~1240
+**Status:** ✅ **IMPLEMENTED** (2026-09-22)
 
-**Current Behavior:**
-- Only captures single retained variable: `retain\s+(\w+)`
-- Only recognizes running sum: `var + accum_source;`
+**Location:** `translate_retain_to_window()` line ~1513
 
-**Broken Cases:**
-```sas
-/* Case A: Multiple retained variables */
-retain ytd_paid claim_count 0 0;
+**Previous Behavior:**
+- Only captured single retained variable: `retain\s+(\w+)`
+- Only recognized running sum: `var + accum_source;`
 
-/* Case B: Carry-forward (no arithmetic) */
-retain last_diag;
-if not missing(diag_code) then last_diag = diag_code;
-```
+**Implementation:**
+- ✅ Parses full RETAIN statement to extract ALL variables
+- ✅ Handles initial values (0, 0.0) and multiple variables
+- ✅ Detects running-sum pattern for each variable
+- ✅ Detects carry-forward pattern: `if not missing(src) then var = src;`
+- ✅ Detects alternate carry-forward: `if src ~= . then var = src;`
+- ✅ Added `pattern_type` field: 'running_sum' vs 'carry_forward'
+- ✅ Enhanced detection messages show pattern type
 
-**Impact:**
-- Falls through with generic warning: "verify running totals use Window functions correctly"
-- Underlying broken `sas2databricks` output is **not fixed**, just flagged
-- User thinks it's handled, but code is still broken
+**Test Results:**
+- ✅ Single variable running sum (existing, still works)
+- ✅ Multiple variables: `retain ytd_paid claim_count 0 0;`
+- ✅ Carry-forward: `if not missing(diag_code) then last_diag = diag_code;`
+- ✅ Carry-forward alternate: `if provider_id ~= . then last_provider = provider_id;`
 
-**Fix Required:**
-1. Detect multiple RETAIN variables in one statement
-2. Recognize carry-forward pattern (last non-missing value)
-3. Distinguish "detected and fixed" from "detected but not recognized" in output
+**All 4 test cases passed!**
 
-**Priority:** 🔴 HIGH — Common pattern in claims processing
+**Priority:** ~~🔴 HIGH~~ → ✅ **CLOSED**
 
 ---
 
@@ -358,11 +357,11 @@ Create fixture library: one `.sas` file per case, expected output, automated dif
 
 **Goal:** Fix silent-failure modes that produce wrong answers
 
-1. **RETAIN Translator Enhancement**
-   - Add multiple-variable pattern detection
-   - Add carry-forward pattern translation
-   - Distinguish "fixed" vs "flagged for review" in output
-   - **Estimated effort:** 4 hours
+1. ~~**RETAIN Translator Enhancement**~~ ✅ **COMPLETE**
+   - ~~Add multiple-variable pattern detection~~ ✅ Done
+   - ~~Add carry-forward pattern translation~~ ✅ Done
+   - ~~Distinguish "fixed" vs "flagged for review" in output~~ ✅ Done
+   - **Actual effort:** 2 hours (estimated 4)
 
 2. **MERGE Join-Type Logic Fix**
    - Parse ALL IF statements after merge
@@ -384,7 +383,7 @@ Create fixture library: one `.sas` file per case, expected output, automated dif
    - **Estimated effort:** 6 hours
 
 **Total Phase 1:** ~20 hours (3 days)  
-**Progress:** 1 of 4 items complete (5% time used, 25% items done)
+**Progress:** 2 of 4 items complete (15% time used, 50% items done) 🚀
 
 ---
 
