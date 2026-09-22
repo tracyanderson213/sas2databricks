@@ -4,6 +4,8 @@
 
 Convert legacy SAS analytics → modern Databricks pipelines with automated code generation, intelligent layer detection, and one-command deployment.
 
+> **⚕️ Healthcare Compliance Notice:** This converter is traditional deterministic software with **zero AI/ML runtime dependencies**. All code transformations use rule-based pattern matching and run entirely within your Databricks infrastructure—no external API calls, no LLM services, fully auditable for HIPAA/PHI compliance.
+
 ---
 
 ## 🚀 Quick Start
