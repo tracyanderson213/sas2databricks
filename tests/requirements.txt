@@ -1,0 +1,10 @@
+# Test dependencies for SAS to Databricks converter test suite
+
+# Core testing framework
+pytest>=7.4.0
+
+# Optional: Parallel test execution
+pytest-xdist>=3.3.0
+
+# Optional: Code coverage reporting
+pytest-cov>=4.1.0
