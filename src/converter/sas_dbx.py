@@ -312,6 +312,14 @@ def post_process_converted_code(code, table_analysis, sas_source_text="", api_st
         for pattern in retain_patterns:
             fixes_applied.append(f"  • {pattern['output_table']}: {pattern['retain_var']} accumulates {pattern['accum_source']}")
 
+    # DETECT FIRST./LAST. patterns (duplicate detection)
+    first_last_patterns = translate_first_last_to_window(sas_source_text)
+
+    if first_last_patterns:
+        fixes_applied.append(f"Detected {len(first_last_patterns)} FIRST./LAST. pattern(s) for duplicate detection")
+        for pattern in first_last_patterns:
+            fixes_applied.append(f"  • {pattern['output_table']}: Keep {pattern['filter_type']} of {pattern['partition_by']}")
+
     # ==============================================================================
     # INSERT MISSING DATALINES TABLES (if sas2databricks skipped them) - BUG FIX #3
     # ==============================================================================
@@ -1553,6 +1561,92 @@ def translate_retain_to_window(sas_source_text):
     return retain_patterns
 
 print("✅ RETAIN translator ready")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## FIRST./LAST. Detection - Duplicate Detection & Row Filtering
+
+# COMMAND ----------
+
+def translate_first_last_to_window(sas_source_text):
+    """
+    Detect FIRST./LAST. patterns and translate to Window functions
+
+    Based on: SAS → Spark/SQL Conversion Patterns, Section 5
+
+    FIRST./LAST. are automatic variables in SAS BY groups that mark the first/last
+    observation in each group. Commonly used for duplicate detection.
+
+    Pattern: if first.key; or if last.key;
+    Translation: ROW_NUMBER() OVER (PARTITION BY key ORDER BY ...) = 1  (for FIRST)
+                 ROW_NUMBER() OVER (PARTITION BY key ORDER BY ... DESC) = 1  (for LAST)
+
+    Returns:
+        list: [{'output_table': ..., 'input_table': ..., 'partition_by': ...,
+                'order_by': ..., 'filter_type': 'first'|'last', 'window_func': 'ROW_NUMBER'}]
+    """
+    import re
+
+    first_last_patterns = []
+
+    # Pattern 1: if first.variable; (keep first occurrence in group)
+    # Pattern: data output; set input; by key; if first.key;
+    first_pattern = r'data\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)set\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)by\s+(\w+(?:\s+\w+)*)\s*;((?:(?!run;).)*?)if\s+first\.(\w+)\s*;'
+
+    for match in re.finditer(first_pattern, sas_source_text, re.IGNORECASE | re.DOTALL):
+        output_table = match.group(1)
+        input_table = match.group(3)
+        by_vars = match.group(5).strip()
+        first_var = match.group(7).strip()
+
+        # Verify that the FIRST variable is in the BY list
+        by_list = [v.strip() for v in by_vars.split()]
+        if first_var in by_list:
+            # Determine ordering - look for PROC SORT before this DATA step
+            sort_pattern = rf'proc\s+sort\s+data\s*=\s*{re.escape(input_table)}.*?by\s+(.*?);'
+            sort_match = re.search(sort_pattern, sas_source_text[:match.start()], re.IGNORECASE | re.DOTALL)
+            order_by = sort_match.group(1).strip() if sort_match else by_vars
+
+            first_last_patterns.append({
+                'output_table': output_table.replace('.', '_'),
+                'input_table': input_table.replace('.', '_'),
+                'partition_by': first_var,  # The variable we're grouping by
+                'order_by': order_by,       # From PROC SORT
+                'filter_type': 'first',
+                'window_func': 'ROW_NUMBER'
+            })
+
+    # Pattern 2: if last.variable; (keep last occurrence in group)
+    # Pattern: data output; set input; by key; if last.key;
+    last_pattern = r'data\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)set\s+(\w+\.\w+|\w+);((?:(?!run;).)*?)by\s+(\w+(?:\s+\w+)*)\s*;((?:(?!run;).)*?)if\s+last\.(\w+)\s*;'
+
+    for match in re.finditer(last_pattern, sas_source_text, re.IGNORECASE | re.DOTALL):
+        output_table = match.group(1)
+        input_table = match.group(3)
+        by_vars = match.group(5).strip()
+        last_var = match.group(7).strip()
+
+        # Verify that the LAST variable is in the BY list
+        by_list = [v.strip() for v in by_vars.split()]
+        if last_var in by_list:
+            # Determine ordering - look for PROC SORT before this DATA step
+            sort_pattern = rf'proc\s+sort\s+data\s*=\s*{re.escape(input_table)}.*?by\s+(.*?);'
+            sort_match = re.search(sort_pattern, sas_source_text[:match.start()], re.IGNORECASE | re.DOTALL)
+            order_by = sort_match.group(1).strip() if sort_match else by_vars
+
+            first_last_patterns.append({
+                'output_table': output_table.replace('.', '_'),
+                'input_table': input_table.replace('.', '_'),
+                'partition_by': last_var,   # The variable we're grouping by
+                'order_by': order_by,        # From PROC SORT
+                'filter_type': 'last',
+                'window_func': 'ROW_NUMBER'
+            })
+
+    return first_last_patterns
+
+print("✅ FIRST./LAST. translator ready")
 
 # COMMAND ----------
 
