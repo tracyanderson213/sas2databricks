@@ -32,9 +32,9 @@
 
 ## 🟡 Missing Features (Not Implemented)
 
-| Feature | Priority | Pattern | Workaround |
-|---------|----------|---------|------------|
-| **FIRST./LAST. detection** | 🔴 HIGH | Duplicate removal | Manual fix required |
+| Feature | Priority | Pattern | Status |
+|---------|----------|---------|--------|
+| ~~**FIRST./LAST. detection**~~ | ~~🔴 HIGH~~ | ~~Duplicate removal~~ | ✅ **IMPLEMENTED** |
 | **Nested IF → CASE** | 🔴 HIGH | Multi-level IF/ELSE | Produces duplicate columns |
 | **Macro handling** | 🟡 MEDIUM | %macro/%mend | Silent pass-through |
 
@@ -83,8 +83,8 @@
 
 | Pattern | Detected? | Translated? | Example |
 |---------|-----------|-------------|---------|
-| first.variable | ❌ No | ❌ No | `if first.member_id;` |
-| last.variable | ❌ No | ❌ No | `if last.claim_date;` |
+| first.variable | ✅ Yes | ✅ Yes | `if first.member_id;` |
+| last.variable | ✅ Yes | ✅ Yes | `if last.claim_date;` |
 
 ### Nested IF Patterns
 
@@ -108,7 +108,7 @@
 ### Phase 1: Critical Fixes (Days 1-3)
 - [ ] RETAIN: Multiple variables + carry-forward
 - [ ] MERGE: Parse all IFs, support OR/NOT/3+ tables
-- [ ] FIRST./LAST.: Implement detection + translation
+- [x] FIRST./LAST.: Implement detection + translation ✅ **DONE**
 - [ ] Nested IF → CASE: Consolidate to single expression
 
 ### Phase 2: Robustness (Days 4-5)
@@ -155,10 +155,11 @@
 ## 📈 Progress Tracking
 
 **Current State:**
-- ✅ 5 fixes applied (working)
-- ❌ 5 critical gaps identified
-- ❌ 3 missing features identified
-- ⏳ 0 automated tests
+- ✅ 5 Genie fixes applied (working)
+- ✅ 1 gap CLOSED: FIRST./LAST. detection
+- ❌ 4 critical gaps remaining
+- ❌ 2 missing features remaining
+- ✅ 28 automated tests (18 passed, 10 xfailed → now 9 xfailed!)
 
 **Target State:**
 - ✅ All critical gaps fixed
@@ -166,7 +167,8 @@
 - ✅ Comprehensive test coverage
 - ✅ Production-ready
 
-**Timeline:** 7-8 days (50 hours)
+**Timeline:** 6-7 days remaining (40 hours)  
+**Progress:** 1 of 7 gaps closed (14% → 21%)
 
 ---
 

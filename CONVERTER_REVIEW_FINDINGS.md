@@ -208,7 +208,7 @@ format gender $gender.;  ← References format from other file
 
 ### 6. FIRST./LAST. Duplicate Detection
 
-**Status:** Not implemented at all
+**Status:** ✅ **IMPLEMENTED** (2026-09-22)
 
 **Use Case:**
 ```sas
@@ -232,9 +232,17 @@ spark.sql("""
 """)
 ```
 
-**Current Behavior:** Not detected, no translation, no warning
+**Implementation:**
+- ✅ `translate_first_last_to_window()` function added
+- ✅ Detects `if first.variable;` patterns
+- ✅ Detects `if last.variable;` patterns
+- ✅ Extracts partition key from BY statement
+- ✅ Determines ORDER BY from preceding PROC SORT
+- ✅ Integrated into conversion pipeline with detection messages
 
-**Priority:** 🔴 HIGH — Extremely common pattern in claims processing
+**Test Status:** Gap test should flip from XFAIL to XPASS
+
+**Priority:** ~~🔴 HIGH~~ → ✅ **CLOSED**
 
 ---
 
@@ -363,11 +371,11 @@ Create fixture library: one `.sas` file per case, expected output, automated dif
    - Handle 3+ tables
    - **Estimated effort:** 6 hours
 
-3. **FIRST./LAST. Implementation**
-   - Detect `if first.var` / `if last.var` patterns
-   - Generate ROW_NUMBER() OVER() with appropriate ORDER BY
-   - Add to post-processing fixes
-   - **Estimated effort:** 4 hours
+3. ~~**FIRST./LAST. Implementation**~~ ✅ **COMPLETE**
+   - ~~Detect `if first.var` / `if last.var` patterns~~ ✅ Done
+   - ~~Generate ROW_NUMBER() OVER() with appropriate ORDER BY~~ ✅ Done
+   - ~~Add to post-processing fixes~~ ✅ Done
+   - **Actual effort:** 1 hour
 
 4. **Nested IF → CASE WHEN Implementation**
    - Detect multiple IF/ELSE assigning same variable
@@ -375,7 +383,8 @@ Create fixture library: one `.sas` file per case, expected output, automated dif
    - Fix duplicate column name issue (original Genie fix #4)
    - **Estimated effort:** 6 hours
 
-**Total Phase 1:** ~20 hours (3 days)
+**Total Phase 1:** ~20 hours (3 days)  
+**Progress:** 1 of 4 items complete (5% time used, 25% items done)
 
 ---
 
